@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="id" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Pembelajaran PKWU - Wirausaha Kerajinan Budaya Non Benda (Fase E)</title>
+    <!-- Supabase JS v2 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/*
+  KONFIGURASI DATABASE ONLINE
+  1) Buat project di Supabase.
+  2) Jalankan file SQL: setup_database_supabase_bk.sql
+  3) Ganti dua nilai di bawah dengan Project URL dan Publishable/Anon Key Anda.
+*/
+const SUPABASE_URL = "https://uexlncxheyieuqjgzdfd.supabase.co";
+const SUPABASE_KEY = "sb_publishable_yZryVSxdkzYPk3wZnUVCEg_NtFeXs3-";
+const supabaseClient = (SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("PASTE_") &&
+                        SUPABASE_KEY && !SUPABASE_KEY.includes("PASTE_"))
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+  : null;
+
+async function saveQuizResultOnline(result) {
+    if (!supabaseClient) {
+        console.warn("Supabase belum dikonfigurasi. Hasil tetap disimpan lokal.");
+        return { ok: false, reason: "not_configured" };
+    }
+
+    const payload = {
+        nis: String(result.nis || "").trim(),
+        nama: String(result.nama || "").trim(),
+        mapel: result.mapel || "PKWU",
+        materi: result.materi || "Wirausaha Kerajinan - Perencanaan Usaha Kerajinan",
+        kelas: result.kelas || "X / Fase E",
+        skor: Number(result.skor || 0),
+        dekomposisi: Number(result.dekomposisi || 0),
+        pola: Number(result.pola || 0),
+        abstraksi: Number(result.abstraksi || 0),
+        algoritma: Number(result.algoritma || 0),
+        waktu: result.waktu || new Date().toISOString()
+    };
+
+    // Jangan bergantung pada constraint UNIQUE nis untuk penyimpanan.
+    // Kita cek dulu apakah NIS sudah ada, lalu UPDATE; jika belum ada, INSERT.
+    // Ini juga membuat pesan error lebih jelas ketika RLS/kolom database bermasalah.
+    try {
+        const { data: existing, error: findError } = await supabaseClient
+            .from("hasil_kuis_bk")
+            .select("id, nis")
+            .eq("nis", payload.nis)
+            .limit(1);
+
+        if (findError) {
+            console.error("Gagal mengecek NIS di database:", findError);
+            return { ok: false, reason: findError.message, code: findError.code };
+        }
+
+        let error = null;
+        if (Array.isArray(existing) && existing.length > 0) {
+            const id = existing[0].id;
+            const response = await supabaseClient
+                .from("hasil_kuis_bk")
+                .update(payload)
+                .eq("id", id);
+            error = response.error;
+        } else {
+            const response = await supabaseClient
+                .from("hasil_kuis_bk")
+                .insert(payload);
+            error = response.error;
+        }
+
+        if (error) {
+            console.error("Gagal menyimpan ke database:", error);
+            return { ok: false, reason: error.message, code: error.code };
+        }
+        return { ok: true };
+    } catch (err) {
+        console.error("Kesalahan koneksi Supabase:", err);
+        return { ok: false, reason: err?.message || String(err) };
+    }
+}
+</script>
+
+<!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d',
+                        },
+                        tech: {
+                            50: '#f0f9ff',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(229, 231, 235, 0.8);
+        }
+        .tab-active {
+            border-bottom: 3px solid #0284c7;
+            color: #0284c7;
+            font-weight: 700;
+        }
+        @keyframes pulse-subtle {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+        .animate-pulse-subtle {
+            animation: pulse-subtle 3s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased selection:bg-tech-500 selection:text-white">
+
+    <!-- Modal Login Sistem NIS -->
+    <div id="login-modal" class="fixed inset-0 z-50 bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 text-slate-800 space-y-6">
+            <div class="text-center space-y-2">
+                <div class="w-16 h-16 bg-gradient-to-tr from-tech-600 to-brand-500 rounded-2xl flex items-center justify-center text-white font-black text-2xl mx-auto shadow-lg">
+                    CT
+                </div>
+                <h2 class="text-2xl font-extrabold text-slate-900">Masuk Media Pembelajaran PKWU</h2>
+                <p class="text-xs text-slate-500">PKWU SMA/SMK Kelas X • Wirausaha Kerajinan</p>
+            </div>
+
+            <!-- Role Tab Switcher -->
+            <div class="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
+                <button type="button" id="tab-btn-siswa" onclick="switchLoginTab('siswa')" class="py-2.5 rounded-lg text-sm font-bold transition-all bg-white text-tech-700 shadow">
+                    🧑‍🎓 Siswa
+                </button>
+                <button type="button" id="tab-btn-guru" onclick="switchLoginTab('guru')" class="py-2.5 rounded-lg text-sm font-bold transition-all text-slate-500 hover:text-slate-700">
+                    👩‍🏫 Guru
+                </button>
+            </div>
+
+            <!-- FORM LOGIN SISWA -->
+            <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label for="nis-input" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Masukkan NISN</label>
+                    <input type="text" id="nis-input" placeholder="Contoh: 0104016810" required class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-tech-500 focus:border-tech-500 text-slate-900 font-semibold outline-none transition-all">
+                </div>
+
+                <div id="login-error" class="hidden p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium">
+                    ❌ NISN tidak ditemukan! Silakan periksa kembali NISN yang dimasukkan.
+                </div>
+
+                <button type="submit" class="w-full py-3.5 px-4 bg-gradient-to-r from-tech-600 to-brand-600 hover:from-tech-500 hover:to-brand-500 text-white font-bold rounded-xl shadow-lg transition-all transform active:scale-95">
+                    Masuk Belajar &rarr;
+                </button>
+            </form>
+
+            <!-- Sample NIS Helper -->
+            <div id="siswa-helper" class="pt-4 border-t border-slate-100 text-xs text-slate-500">
+                <p class="font-bold text-slate-700 mb-1">💡 Contoh NISN Terdaftar:</p>
+                <div class="grid grid-cols-2 gap-1 text-[11px] font-mono text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-200 max-h-28 overflow-y-auto">
+                    <span>• 12345: ADINDA R. N.</span>
+                    <span>• 12346: AGUSTINUS P.</span>
+                    <span>• 12347: APRIAL DIKA</span>
+                    <span>• 12348: AHMAD SARIFUDIN</span>
+                    <span>• 12349: ASNIYA R.</span>
+                    <span>• 12350: DEA PUTRI</span>
+                    <span>• 12351: MAULIA P.</span>
+                    <span>• 12352: DWI ARYA A.</span>
+                </div>
+            </div>
+
+            <!-- FORM LOGIN GURU -->
+            <form id="teacher-login-form" onsubmit="handleTeacherLogin(event)" class="hidden space-y-4">
+                <div>
+                    <label for="teacher-password-input" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Kata Sandi Guru</label>
+                    <input type="password" id="teacher-password-input" placeholder="Masukkan kata sandi" required class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-slate-900 font-semibold outline-none transition-all">
+                </div>
+
+                <div id="teacher-login-error" class="hidden p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium">
+                    ❌ Kata sandi guru salah. Silakan coba lagi.
+                </div>
+
+                <button type="submit" class="w-full py-3.5 px-4 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold rounded-xl shadow-lg transition-all transform active:scale-95">
+                    Masuk sebagai Guru &rarr;
+                </button>
+
+                <p class="text-[11px] text-slate-400 text-center">Akses ini menampilkan rekap nilai kuis PKWU seluruh siswa.</p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sticky Navigation Bar -->
+    <header class="sticky top-0 z-40 bg-white/90 backdrop-blur-md shadow-sm border-b border-slate-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-tech-600 to-brand-500 flex items-center justify-center text-white font-black text-xl shadow-md">
+                        CT
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-slate-900 text-base sm:text-lg leading-tight">Wirausaha Kerajinan</h1>
+                        <p class="text-xs text-slate-500">PKWU SMA Kelas X • Fase E</p>
+                    </div>
+                </div>
+                <!-- Navigation Tabs -->
+                <nav class="hidden md:flex space-x-6 text-sm font-medium text-slate-600">
+                    <a href="#materi" class="hover:text-tech-600 transition-colors">1. Materi</a>
+                    <a href="#studi-kasus" class="hover:text-tech-600 transition-colors">2. Studi Kasus</a>
+                    <a href="#simulasi" class="hover:text-tech-600 transition-colors">3. Simulasi</a>
+                    <a href="#kuis" class="hover:text-tech-600 transition-colors">4. Quiz 10 Soal</a>
+                    <a href="#dashboard-guru" id="nav-dashboard-guru" class="hidden hover:text-amber-600 transition-colors font-bold text-amber-700">5. Dashboard Guru</a>
+                </nav>
+                <div class="flex items-center space-x-3">
+                    <!-- Active Student Badge -->
+                    <div id="user-badge" class="hidden items-center space-x-2 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200 text-xs text-slate-800 font-medium">
+                        <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
+                        <span>👤 <strong id="student-name-display" class="text-tech-700">Siswa</strong> (<span id="student-nis-display" class="font-mono text-slate-500">NISN</span>)</span>
+                        <button onclick="handleLogout()" class="ml-2 text-red-600 hover:text-red-800 font-bold text-[11px] underline">Keluar</button>
+                    </div>
+                    <!-- Active Teacher Badge -->
+                    <div id="teacher-badge" class="hidden items-center space-x-2 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200 text-xs text-amber-900 font-medium">
+                        <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                        <span>👩‍🏫 <strong>Mode Guru</strong></span>
+                        <button onclick="handleTeacherLogout()" class="ml-2 text-red-600 hover:text-red-800 font-bold text-[11px] underline">Keluar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- HERO / ONE-PAGE LEARNING -->
+    <section class="relative bg-gradient-to-b from-slate-950 via-amber-900 to-slate-950 text-white py-12 lg:py-16 overflow-hidden">
+        <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#fbbf24_1px,transparent_1px)] [background-size:16px_16px]"></div>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                <div class="lg:col-span-7 space-y-5">
+                    <div class="inline-flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-full border border-amber-700/50 text-xs text-amber-300 font-mono">
+                        <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                        <span>INTERACTIVE LEARNING • KURIKULUM MERDEKA</span>
+                    </div>
+                    <h2 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight">
+                        Wirausaha Kerajinan dengan Inspirasi Budaya Non Benda
+                    </h2>
+                    <p class="text-slate-300 text-base sm:text-lg max-w-2xl leading-relaxed">
+                        <strong class="text-amber-300">Bab 1 • Kelas X / Fase E</strong><br>
+                        Subbab: <strong>Perencanaan Usaha Kerajinan dengan Inspirasi Budaya Non Benda.</strong>
+                        Pelajari cara mengubah cerita, tradisi, tarian, musik, bahasa, motif, atau kearifan lokal menjadi ide produk bernilai ekonomi melalui perencanaan yang sistematis.
+                    </p>
+                    <div class="flex flex-wrap gap-3 pt-1">
+                        <a href="#materi" class="px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold shadow-lg transition-all">Mulai Belajar ↓</a>
+                        <a href="#simulasi" class="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold border border-slate-700">🎮 Coba Simulasi</a>
+                    </div>
+                </div>
+                <div class="lg:col-span-5">
+                    <div class="glass-card bg-white/10 p-6 rounded-3xl border border-white/15 shadow-2xl space-y-4">
+                        <h3 class="text-lg font-bold text-white">🎯 Tujuan Pembelajaran</h3>
+                        <div class="grid grid-cols-2 gap-3 text-sm">
+                            <div class="bg-white/10 rounded-2xl p-4"><b class="text-amber-300">01</b><p class="mt-1">Mengenali budaya non benda sebagai sumber inspirasi.</p></div>
+                            <div class="bg-white/10 rounded-2xl p-4"><b class="text-amber-300">02</b><p class="mt-1">Menganalisis kebutuhan pasar dan calon konsumen.</p></div>
+                            <div class="bg-white/10 rounded-2xl p-4"><b class="text-amber-300">03</b><p class="mt-1">Menyusun konsep produk dan rencana produksi.</p></div>
+                            <div class="bg-white/10 rounded-2xl p-4"><b class="text-amber-300">04</b><p class="mt-1">Menghitung biaya, harga, promosi, dan risiko usaha.</p></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- NAV / MATERI -->
+    <section id="materi" class="py-14 bg-white border-b border-slate-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-3xl mx-auto mb-10">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-amber-600 mb-2">Materi Inti</h2>
+                <p class="text-3xl font-extrabold text-slate-900 sm:text-4xl">Peta Perencanaan Usaha</p>
+                <p class="mt-3 text-slate-600">Klik setiap kartu untuk membuka penjelasan, contoh, dan pertanyaan pemantik.</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <button onclick="showPlanDetail('budaya')" class="text-left p-5 rounded-2xl border border-slate-200 bg-amber-50 hover:border-amber-400 hover:-translate-y-1 transition-all">
+                    <div class="text-3xl">🎭</div><h3 class="font-bold mt-3">1. Budaya Non Benda</h3><p class="text-xs text-slate-600 mt-1">Gagasan, tradisi, seni, cerita, dan kearifan lokal.</p>
+                </button>
+                <button onclick="showPlanDetail('ide')" class="text-left p-5 rounded-2xl border border-slate-200 bg-slate-50 hover:border-amber-400 hover:-translate-y-1 transition-all">
+                    <div class="text-3xl">💡</div><h3 class="font-bold mt-3">2. Ide Produk</h3><p class="text-xs text-slate-600 mt-1">Mengubah inspirasi menjadi konsep produk.</p>
+                </button>
+                <button onclick="showPlanDetail('pasar')" class="text-left p-5 rounded-2xl border border-slate-200 bg-slate-50 hover:border-amber-400 hover:-translate-y-1 transition-all">
+                    <div class="text-3xl">🔎</div><h3 class="font-bold mt-3">3. Riset Pasar</h3><p class="text-xs text-slate-600 mt-1">Target konsumen, kebutuhan, pesaing, dan tren.</p>
+                </button>
+                <button onclick="showPlanDetail('produksi')" class="text-left p-5 rounded-2xl border border-slate-200 bg-slate-50 hover:border-amber-400 hover:-translate-y-1 transition-all">
+                    <div class="text-3xl">🛠️</div><h3 class="font-bold mt-3">4. Produksi</h3><p class="text-xs text-slate-600 mt-1">Bahan, alat, proses, kualitas, dan kapasitas.</p>
+                </button>
+                <button onclick="showPlanDetail('usaha')" class="text-left p-5 rounded-2xl border border-slate-200 bg-slate-50 hover:border-amber-400 hover:-translate-y-1 transition-all">
+                    <div class="text-3xl">💰</div><h3 class="font-bold mt-3">5. Bisnis</h3><p class="text-xs text-slate-600 mt-1">Biaya, harga, promosi, risiko, dan evaluasi.</p>
+                </button>
+            </div>
+            <div id="plan-detail-box" class="mt-6 p-6 sm:p-8 rounded-3xl bg-slate-950 text-white shadow-xl">
+                <div id="plan-detail-content"></div>
+            </div>
+
+            <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="p-5 rounded-2xl bg-emerald-50 border border-emerald-200">
+                    <b class="text-emerald-800">🌿 Contoh inspirasi</b>
+                    <p class="text-sm mt-2">Tari tradisional, cerita rakyat, lagu daerah, bahasa lokal, upacara adat, permainan tradisional, dan kearifan lokal dapat menjadi sumber gagasan desain.</p>
+                </div>
+                <div class="p-5 rounded-2xl bg-blue-50 border border-blue-200">
+                    <b class="text-blue-800">🧠 Prinsip penting</b>
+                    <p class="text-sm mt-2">Inspirasi budaya tidak cukup hanya ditempel sebagai hiasan. Produk perlu memiliki fungsi, estetika, identitas, target pasar, dan nilai tambah.</p>
+                </div>
+                <div class="p-5 rounded-2xl bg-rose-50 border border-rose-200">
+                    <b class="text-rose-800">⚠️ Etika budaya</b>
+                    <p class="text-sm mt-2">Pahami makna budaya, hindari penyalahgunaan simbol, dan pertimbangkan penghargaan/izin ketika menggunakan unsur budaya tertentu.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- STUDI KASUS -->
+    <section id="studi-kasus" class="py-14 bg-slate-50 border-b border-slate-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-3xl mx-auto mb-9">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-amber-600">Studi Kasus</h2>
+                <h3 class="text-3xl font-extrabold text-slate-900 mt-2">Dari Budaya Menjadi Produk</h3>
+                <p class="text-slate-600 mt-2">Amati contoh berikut lalu pikirkan keputusan usaha yang perlu dibuat.</p>
+            </div>
+            <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-2">
+                    <div class="p-7 bg-gradient-to-br from-amber-50 to-orange-50">
+                        <div class="text-5xl mb-4">🪵</div>
+                        <span class="text-xs font-bold uppercase text-amber-700">Kasus</span>
+                        <h4 class="text-2xl font-extrabold text-slate-900 mt-1">Lampu Hias Motif Budaya Kalimantan</h4>
+                        <p class="text-sm text-slate-700 mt-3">Tim siswa ingin membuat lampu hias kayu yang terinspirasi dari cerita, simbol, dan seni tradisional Kalimantan. Modal awal terbatas dan produk ditujukan untuk remaja serta wisatawan.</p>
+                    </div>
+                    <div class="p-7">
+                        <div class="space-y-3">
+                            <div class="flex gap-3"><span class="font-black text-amber-600">01</span><div><b>Identifikasi</b><p class="text-sm text-slate-600">Tentukan unsur budaya dan makna yang akan menjadi sumber inspirasi.</p></div></div>
+                            <div class="flex gap-3"><span class="font-black text-amber-600">02</span><div><b>Pasar</b><p class="text-sm text-slate-600">Tentukan siapa pembeli, kebutuhan mereka, dan kisaran harga yang masuk akal.</p></div></div>
+                            <div class="flex gap-3"><span class="font-black text-amber-600">03</span><div><b>Produk</b><p class="text-sm text-slate-600">Pilih bahan, ukuran, desain, fungsi, kemasan, dan kualitas.</p></div></div>
+                            <div class="flex gap-3"><span class="font-black text-amber-600">04</span><div><b>Bisnis</b><p class="text-sm text-slate-600">Hitung biaya, tentukan harga, strategi promosi, serta antisipasi risiko.</p></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SIMULASI -->
+    <section id="simulasi" class="py-14 bg-white border-b border-slate-200">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-9">
+                <span class="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold uppercase tracking-wider">🎮 Simulasi Interaktif</span>
+                <h2 class="text-3xl font-extrabold text-slate-900 sm:text-4xl mt-3">Craft Business Planner Lab</h2>
+                <p class="mt-2 text-slate-600">Bangun rencana usaha virtual. Setiap pilihan memengaruhi kelayakan ide dan hasil simulasi.</p>
+            </div>
+            <div class="bg-slate-950 rounded-3xl p-6 sm:p-8 text-white shadow-2xl">
+                <div class="flex flex-wrap justify-between items-center gap-4 border-b border-slate-800 pb-5 mb-6">
+                    <div><span class="text-xs text-amber-400 font-mono">MISI USAHA</span><h3 class="text-xl font-bold">Buat produk kerajinan berbasis budaya yang layak dijual.</h3></div>
+                    <div class="flex items-center gap-2"><span class="text-xs text-slate-400">Skor rencana</span><span id="sim-score" class="text-2xl font-black text-amber-400">0</span></div>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-7">
+                    <div id="sim-p1" class="h-2 rounded-full bg-amber-500"></div><div id="sim-p2" class="h-2 rounded-full bg-slate-800"></div><div id="sim-p3" class="h-2 rounded-full bg-slate-800"></div><div id="sim-p4" class="h-2 rounded-full bg-slate-800"></div><div id="sim-p5" class="h-2 rounded-full bg-slate-800"></div>
+                </div>
+                <div id="business-sim-body" class="min-h-[300px]"></div>
+                <div class="flex items-center justify-between border-t border-slate-800 pt-5 mt-7">
+                    <button id="sim-prev-new" onclick="businessPrev()" class="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-sm font-semibold disabled:opacity-40" disabled>← Sebelumnya</button>
+                    <span id="business-step-text" class="text-xs text-slate-400">Langkah 1 dari 5</span>
+                    <button id="sim-next-new" onclick="businessNext()" class="px-5 py-2.5 rounded-xl bg-amber-500 text-slate-950 text-sm font-bold hover:bg-amber-400">Pilih & Lanjut →</button>
+                </div>
+            </div>
+            <div id="sim-result" class="hidden mt-5 p-6 rounded-2xl border bg-amber-50 border-amber-200">
+                <h4 class="text-xl font-extrabold text-slate-900">📊 Hasil Rencana Usahamu</h4>
+                <p id="sim-result-text" class="text-sm text-slate-700 mt-2"></p>
+                <button onclick="resetBusinessSim()" class="mt-4 px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-bold">Coba Lagi</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- QUIZ -->
+    <section id="kuis" class="py-14 bg-slate-50">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-9">
+                <span class="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold uppercase tracking-wider">Evaluasi</span>
+                <h2 class="text-3xl font-extrabold text-slate-900 sm:text-4xl mt-2">Quiz Interaktif • 10 Soal</h2>
+                <p class="mt-2 text-slate-600 text-sm">Pilih jawaban terbaik berdasarkan materi perencanaan usaha kerajinan dengan inspirasi budaya non benda.</p>
+            </div>
+            <div class="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
+                <div class="w-full bg-slate-100 h-2.5"><div id="quiz-progress-bar" class="bg-gradient-to-r from-amber-400 to-orange-500 h-2.5 transition-all" style="width:10%"></div></div>
+                <div class="p-6 sm:p-10">
+                    <div class="flex justify-between items-center mb-6 text-xs sm:text-sm font-semibold text-slate-500">
+                        <span id="quiz-question-number" class="text-amber-600 font-bold">Soal 1 dari 10</span>
+                        <span id="quiz-score-badge" class="bg-slate-100 px-3 py-1 rounded-full text-slate-700">Skor: 0</span>
+                    </div>
+                    <div id="quiz-question-box">
+                        <h3 id="quiz-question-text" class="text-lg sm:text-xl font-bold text-slate-900 leading-snug mb-6"></h3>
+                        <div id="quiz-options-container" class="space-y-3"></div>
+                        <div id="quiz-feedback-box" class="hidden mt-6 p-4 rounded-xl text-sm leading-relaxed"></div>
+                    </div>
+                    <div id="quiz-result-dashboard" class="hidden text-center py-6 space-y-5">
+                        <div class="text-5xl">🎉</div>
+                        <h3 class="text-2xl font-extrabold">Kuis Selesai!</h3>
+                        <div class="bg-amber-50 p-6 rounded-2xl border border-amber-200 max-w-sm mx-auto">
+                            <div class="text-5xl font-black text-amber-600" id="final-score-val">0</div>
+                            <div class="text-xs font-semibold text-slate-500 uppercase">Skor / 100</div>
+                            <div class="mt-3 text-sm text-slate-700" id="final-status-text"></div>
+                        </div>
+                        <div class="text-left bg-slate-50 p-5 rounded-2xl border text-sm space-y-2">
+                            <b>Ringkasan kemampuan:</b>
+                            <div class="flex justify-between"><span>Budaya & Ide</span><b id="score-dekomposisi">0</b></div>
+                            <div class="flex justify-between"><span>Riset Pasar</span><b id="score-pola">0</b></div>
+                            <div class="flex justify-between"><span>Produksi</span><b id="score-abstraksi">0</b></div>
+                            <div class="flex justify-between"><span>Keuangan & Bisnis</span><b id="score-algoritma">0</b></div>
+                        </div>
+                        <div class="flex flex-wrap justify-center gap-3 pt-2">
+                            <button onclick="openCertificateModal()" class="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow">🎓 Lihat Sertifikat</button>
+                            <button onclick="restartQuiz()" class="px-6 py-3 bg-slate-900 text-white font-bold rounded-xl">🔄 Ulangi Kuis</button>
+                        </div>
+                    </div>
+                    <div id="quiz-action-bar" class="mt-8 pt-6 border-t border-slate-100 flex justify-end">
+                        <button onclick="submitQuizAnswer()" id="btn-quiz-submit" class="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow disabled:opacity-50" disabled>Jawab & Lanjut →</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 5: DASHBOARD GURU - REKAP NILAI KUIS SEMUA SISWA -->
+    <section id="dashboard-guru" class="hidden py-16 bg-slate-900">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-8">
+                <span class="px-3 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-bold uppercase tracking-wider border border-amber-500/30">Khusus Guru</span>
+                <h2 class="text-3xl font-extrabold text-white sm:text-4xl mt-2">Dashboard Nilai Kuis PKWU</h2>
+                <p class="mt-2 text-slate-400 text-sm">Rekapitulasi nilai PKWU seluruh 36 siswa. Siswa yang belum mengerjakan tetap ditampilkan dengan statusnya.</p>
+            </div>
+
+            <!-- Summary Stat Cards -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+                <div class="bg-slate-800 rounded-2xl p-5 border border-slate-700 text-center">
+                    <div class="text-2xl sm:text-3xl font-black text-tech-500" id="stat-total-siswa">0</div>
+                    <div class="text-[11px] text-slate-400 font-semibold uppercase mt-1">Siswa Mengerjakan / Total</div>
+                </div>
+                <div class="bg-slate-800 rounded-2xl p-5 border border-slate-700 text-center">
+                    <div class="text-2xl sm:text-3xl font-black text-brand-500" id="stat-rata-rata">0</div>
+                    <div class="text-[11px] text-slate-400 font-semibold uppercase mt-1">Rata-rata Skor</div>
+                </div>
+                <div class="bg-slate-800 rounded-2xl p-5 border border-slate-700 text-center">
+                    <div class="text-2xl sm:text-3xl font-black text-amber-500" id="stat-skor-tertinggi">0</div>
+                    <div class="text-[11px] text-slate-400 font-semibold uppercase mt-1">Skor Tertinggi</div>
+                </div>
+                <div class="bg-slate-800 rounded-2xl p-5 border border-slate-700 text-center">
+                    <div class="text-2xl sm:text-3xl font-black text-red-400" id="stat-belum-tuntas">0</div>
+                    <div class="text-[11px] text-slate-400 font-semibold uppercase mt-1">Skor &lt; 70</div>
+                </div>
+            </div>
+
+            <!-- Toolbar: Search, Refresh, Export -->
+            <div class="flex flex-col sm:flex-row gap-3 mb-4 items-stretch sm:items-center justify-between">
+                <input type="text" id="teacher-search-input" oninput="filterTeacherTable()" placeholder="🔍 Cari nama atau NISN siswa..." class="w-full sm:w-80 px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 text-sm outline-none focus:ring-2 focus:ring-tech-500">
+                <div class="flex gap-2">
+                    <button onclick="loadTeacherDashboard()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-semibold transition-all">
+                        🔄 Muat Ulang
+                    </button>
+                    <button onclick="exportResultsCSV()" class="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold shadow transition-all">
+                        📥 Ekspor CSV
+                    </button>
+                </div>
+            </div>
+
+            <p id="teacher-source-note" class="text-[11px] text-slate-500 mb-3"></p>
+
+            <!-- Results Table -->
+            <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-x-auto shadow-xl">
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-slate-900/60 text-slate-400 text-[11px] uppercase tracking-wider">
+                        <tr>
+                            <th class="px-4 py-3">No</th>
+                            <th class="px-4 py-3">Nama Siswa</th>
+                            <th class="px-4 py-3">NISN</th>
+                            <th class="px-4 py-3 text-center">Skor Akhir</th>
+                            <th class="px-4 py-3 text-center">Identifikasi Ide</th>
+                            <th class="px-4 py-3 text-center">Pola</th>
+                            <th class="px-4 py-3 text-center">Abstraksi</th>
+                            <th class="px-4 py-3 text-center">Algoritma</th>
+                            <th class="px-4 py-3">Predikat</th>
+                            <th class="px-4 py-3">Waktu Pengerjaan</th>
+                        </tr>
+                    </thead>
+                    <tbody id="teacher-results-tbody" class="divide-y divide-slate-700 text-slate-200">
+                        <!-- Rows injected by JS -->
+                    </tbody>
+                </table>
+                <div id="teacher-empty-state" class="hidden text-center py-12 text-slate-500 text-sm">
+                    Belum ada siswa yang menyelesaikan kuis evaluasi.
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 text-slate-400 py-8 text-center text-xs border-t border-slate-800">
+        <div class="max-w-7xl mx-auto px-4">
+            <p class="font-semibold text-slate-300">Media Pembelajaran Interaktif PKWU - Fase E (Kelas 10)</p>
+            <p class="mt-1 text-slate-500">Elemen: Wirausaha Kerajinan (BK) • Kurikulum Merdeka • Guru Mapel: Abdul Rahman</p>
+        </div>
+    </footer>
+
+    <!-- MODAL SERTIFIKAT DIGITAL -->
+    <div id="certificate-modal" class="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-md hidden flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-4xl w-full shadow-2xl border border-slate-200 text-slate-800 space-y-6 my-8">
+            <div class="flex justify-between items-center border-b border-slate-200 pb-4">
+                <div>
+                    <h3 class="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+                        <span>🎓 Sertifikat Kelulusan Digital</span>
+                    </h3>
+                    <p class="text-xs text-slate-500">Mata Pelajaran PKWU • Guru Pengampu: <strong class="text-slate-800">Abdul Rahman</strong></p>
+                </div>
+                <button onclick="closeCertificateModal()" class="text-slate-400 hover:text-slate-600 font-bold text-2xl p-1">&times;</button>
+            </div>
+
+            <!-- Canvas Certificate Container -->
+            <div class="w-full overflow-x-auto bg-slate-100 p-2 sm:p-4 rounded-2xl flex justify-center border border-slate-200 shadow-inner">
+                <canvas id="cert-canvas" width="1200" height="850" class="max-w-full h-auto rounded-xl shadow-md bg-white"></canvas>
+            </div>
+
+            <!-- Modal Action Footer -->
+            <div class="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-100">
+                <p class="text-xs text-slate-500">💡 Klik tombol di bawah untuk mengunduh sertifikat dalam format file gambar JPEG.</p>
+                <div class="flex gap-3">
+                    <button onclick="closeCertificateModal()" class="px-5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-700 hover:bg-slate-50 text-sm">
+                        Tutup
+                    </button>
+                    <button onclick="shareCertificate()" class="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm shadow-md transition-all flex items-center gap-2 transform active:scale-95">
+                        📤 Bagikan
+                    </button>
+                    <button onclick="downloadCertificateJPEG()" class="px-6 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm shadow-md transition-all flex items-center gap-2 transform active:scale-95">
+                        📥 Simpan JPEG
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ===================================================
+           STUDENT DATABASE & AUTHENTICATION
+           =================================================== */
+        const studentDatabase = [
+            { nis: "0104016810", nama: "AHMAD TANDI" },
+            { nis: "0107098938", nama: "ALIYAH RAHMADANI PUTRI" },
+            { nis: "0114736319", nama: "ASTINA DEVI" },
+            { nis: "0118227413", nama: "AYRA QIRANI ANANDA" },
+            { nis: "0105668559", nama: "BAYU ANDIKA" },
+            { nis: "0102603895", nama: "BESSE NOVIVATUL KHAIRIAH" },
+            { nis: "0115978064", nama: "EBI" },
+            { nis: "3102523721", nama: "FARHAN HAMID" },
+            { nis: "0111806431", nama: "FARIZ ANDIKA" },
+            { nis: "0109512802", nama: "FAZRIL PASYA WIRANATA" },
+            { nis: "0116651427", nama: "FEBRYAN NEVENS ANDREAS" },
+            { nis: "0118815637", nama: "FERI ENG" },
+            { nis: "0119437072", nama: "FIKRI NUR ANANDA" },
+            { nis: "0103731170", nama: "FITRI SITI NUR ATIKAH" },
+            { nis: "0107688045", nama: "HILDA RAMADANI" },
+            { nis: "0102490187", nama: "HISYAM MARWAN" },
+            { nis: "0115720115", nama: "IRFAN MAULANA" },
+            { nis: "0107432537", nama: "MOCHAMMAD RAYHAN NOER RUDYAN" },
+            { nis: "0104606369", nama: "MUHAMMAD AHAD SYAHPUTRA" },
+            { nis: "0116413438", nama: "MUHAMMAD AZRIEL HAIDIR RAEHAN" },
+            { nis: "0104377604", nama: "MUHAMMAD FADLY" },
+            { nis: "0103655918", nama: "NAHJWA PUTRI RAMAHDANI" },
+            { nis: "0103212582", nama: "NIA RAHMADAYANI" },
+            { nis: "0101655164", nama: "NIVIAN ALSA" },
+            { nis: "0091034795", nama: "NORMAN JEFRIYANTO" },
+            { nis: "0106744770", nama: "OKTAVIANUR PRATIWI" },
+            { nis: "0099550570", nama: "PUTRI AULIA OKTAPIANI" },
+            { nis: "0119897871", nama: "RAFFA RADITYA DIKA" },
+            { nis: "0105269179", nama: "RISWAN RIDHO SAPUTRA" },
+            { nis: "0097747230", nama: "RUSLI" },
+            { nis: "3104005381", nama: "SASKIA EKA ROHANDRA" },
+            { nis: "0102656404", nama: "SATRIA RIFKY ADITYA" },
+            { nis: "0093342586", nama: "VERONIKA LIPAT" },
+            { nis: "0105141707", nama: "YELIAN TANDI BUAK" },
+            { nis: "0108079326", nama: "ZAHIRA PUTRI RAHMADANI" },
+            { nis: "0113345689", nama: "ZEA ADILA MYIESA ELIANTA" }
+        ];
+
+        let currentUser = null;
+        let isTeacher = false;
+
+        // Kata sandi login guru. Ganti sesuai kebutuhan sebelum dibagikan ke siswa.
+        const TEACHER_PASSWORD = "guru2026";
+
+        function switchLoginTab(role) {
+            const btnSiswa = document.getElementById('tab-btn-siswa');
+            const btnGuru = document.getElementById('tab-btn-guru');
+            const formSiswa = document.getElementById('login-form');
+            const formGuru = document.getElementById('teacher-login-form');
+            const helperSiswa = document.getElementById('siswa-helper');
+
+            if (role === 'guru') {
+                btnGuru.className = "py-2.5 rounded-lg text-sm font-bold transition-all bg-white text-amber-700 shadow";
+                btnSiswa.className = "py-2.5 rounded-lg text-sm font-bold transition-all text-slate-500 hover:text-slate-700";
+                formGuru.classList.remove('hidden');
+                formSiswa.classList.add('hidden');
+                helperSiswa.classList.add('hidden');
+            } else {
+                btnSiswa.className = "py-2.5 rounded-lg text-sm font-bold transition-all bg-white text-tech-700 shadow";
+                btnGuru.className = "py-2.5 rounded-lg text-sm font-bold transition-all text-slate-500 hover:text-slate-700";
+                formSiswa.classList.remove('hidden');
+                formGuru.classList.add('hidden');
+                helperSiswa.classList.remove('hidden');
+            }
+        }
+
+        function handleLogin(event) {
+            event.preventDefault();
+            const nisInput = document.getElementById('nis-input').value.trim();
+            const errorBox = document.getElementById('login-error');
+
+            const foundStudent = studentDatabase.find(s => s.nis === nisInput);
+
+            if (foundStudent) {
+                currentUser = foundStudent;
+                errorBox.classList.add('hidden');
+                document.getElementById('login-modal').classList.add('hidden');
+                
+                // Show badge on header
+                document.getElementById('user-badge').classList.remove('hidden');
+                document.getElementById('user-badge').classList.add('flex');
+                document.getElementById('student-name-display').innerText = currentUser.nama;
+                document.getElementById('student-nis-display').innerText = currentUser.nis;
+            } else {
+                errorBox.classList.remove('hidden');
+            }
+        }
+
+        function handleLogout() {
+            currentUser = null;
+            document.getElementById('nis-input').value = '';
+            document.getElementById('login-error').classList.add('hidden');
+            document.getElementById('user-badge').classList.add('hidden');
+            document.getElementById('user-badge').classList.remove('flex');
+            switchLoginTab('siswa');
+            document.getElementById('login-modal').classList.remove('hidden');
+        }
+
+        /* ===================================================
+           AUTENTIKASI GURU & DASHBOARD NILAI SISWA
+           =================================================== */
+        function handleTeacherLogin(event) {
+            event.preventDefault();
+            const passInput = document.getElementById('teacher-password-input').value;
+            const errorBox = document.getElementById('teacher-login-error');
+
+            if (passInput === TEACHER_PASSWORD) {
+                isTeacher = true;
+                errorBox.classList.add('hidden');
+                document.getElementById('login-modal').classList.add('hidden');
+                document.getElementById('teacher-password-input').value = '';
+
+                // Tampilkan badge & navigasi khusus guru
+                document.getElementById('teacher-badge').classList.remove('hidden');
+                document.getElementById('teacher-badge').classList.add('flex');
+                document.getElementById('nav-dashboard-guru').classList.remove('hidden');
+
+                // Langsung tampilkan dashboard
+                document.getElementById('dashboard-guru').classList.remove('hidden');
+                loadTeacherDashboard();
+                document.getElementById('dashboard-guru').scrollIntoView({ behavior: 'smooth' });
+            } else {
+                errorBox.classList.remove('hidden');
+            }
+        }
+
+        function handleTeacherLogout() {
+            isTeacher = false;
+            document.getElementById('teacher-badge').classList.add('hidden');
+            document.getElementById('teacher-badge').classList.remove('flex');
+            document.getElementById('nav-dashboard-guru').classList.add('hidden');
+            document.getElementById('dashboard-guru').classList.add('hidden');
+            switchLoginTab('siswa');
+            document.getElementById('login-modal').classList.remove('hidden');
+        }
+
+        let teacherResultsCache = [];
+
+        function normalizeResult(r) {
+            return {
+                nis: String(r.nis || r.nisn || "").trim(),
+                nama: String(r.nama || "").trim(),
+                mapel: r.mapel || "PKWU",
+                materi: r.materi || "Wirausaha Kerajinan dengan Inspirasi Budaya Non Benda - Perencanaan Usaha Kerajinan",
+                kelas: r.kelas || "X / Fase E",
+                skor: r.skor === null || r.skor === undefined || r.skor === "" ? null : Number(r.skor),
+                dekomposisi: r.dekomposisi === null || r.dekomposisi === undefined || r.dekomposisi === "" ? null : Number(r.dekomposisi),
+                pola: r.pola === null || r.pola === undefined || r.pola === "" ? null : Number(r.pola),
+                abstraksi: r.abstraksi === null || r.abstraksi === undefined || r.abstraksi === "" ? null : Number(r.abstraksi),
+                algoritma: r.algoritma === null || r.algoritma === undefined || r.algoritma === "" ? null : Number(r.algoritma),
+                waktu: r.waktu || "",
+                waktuTampil: r.waktuTampil || (r.waktu ? new Date(r.waktu).toLocaleString("id-ID") : "")
+            };
+        }
+
+        async function loadTeacherDashboard() {
+            const storageKey = "bk_quiz_results_v1";
+            let localResults = [];
+            try {
+                localResults = JSON.parse(localStorage.getItem(storageKey) || "[]");
+                if (!Array.isArray(localResults)) localResults = [];
+            } catch (e) { localResults = []; }
+            localResults = localResults.map(normalizeResult);
+
+            // Selalu tampilkan seluruh 36 siswa dari roster.
+            const rosterResults = studentDatabase.map(student => normalizeResult({
+                nis: student.nis,
+                nama: student.nama,
+                mapel: "PKWU",
+                skor: null,
+                dekomposisi: null,
+                pola: null,
+                abstraksi: null,
+                algoritma: null,
+                waktu: ""
+            }));
+
+            // Merge berdasarkan NISN yang sudah dinormalisasi.
+            const mergeResults = (base, incoming) => {
+                incoming.forEach(raw => {
+                    const item = normalizeResult(raw);
+                    if (!item.nis) return;
+                    const idx = base.findIndex(x => String(x.nis).trim() === item.nis);
+                    if (idx >= 0) {
+                        const old = base[idx];
+                        // Data online yang memiliki waktu dianggap sebagai hasil terbaru.
+                        const onlineHasScore = Boolean(item.waktu) || item.skor !== null;
+                        base[idx] = {
+                            ...old,
+                            ...item,
+                            nama: item.nama || old.nama,
+                            skor: onlineHasScore ? item.skor : old.skor,
+                            dekomposisi: onlineHasScore ? item.dekomposisi : old.dekomposisi,
+                            pola: onlineHasScore ? item.pola : old.pola,
+                            abstraksi: onlineHasScore ? item.abstraksi : old.abstraksi,
+                            algoritma: onlineHasScore ? item.algoritma : old.algoritma,
+                            waktu: item.waktu || old.waktu,
+                            waktuTampil: item.waktuTampil || old.waktuTampil
+                        };
+                    } else {
+                        base.push(item);
+                    }
+                });
+                return base;
+            };
+
+            let combined = mergeResults(rosterResults, localResults);
+            const sourceNote = document.getElementById('teacher-source-note');
+            sourceNote.innerHTML = "<span class='text-slate-400'>● Menghubungkan ke database online...</span>";
+
+            if (supabaseClient) {
+                try {
+                    // Jangan memfilter mapel di server. Ambil semua kolom hasil_kuis_bk,
+                    // lalu filter PKWU di browser. Ini menghindari masalah perbedaan
+                    // kapitalisasi/spasi pada kolom mapel.
+                    const { data, error } = await supabaseClient
+                        .from("hasil_kuis_bk")
+                        .select("id, nis, nama, mapel, materi, kelas, skor, dekomposisi, pola, abstraksi, algoritma, waktu")
+                        .order("waktu", { ascending: false });
+
+                    if (error) {
+                        console.error("Supabase SELECT error:", error);
+                        sourceNote.innerHTML = `<span class='text-red-400 font-semibold'>● Gagal membaca database.</span> <span class='text-red-300'>${String(error.message || error.code || 'Unknown error').replace(/</g,'&lt;')}</span>`;
+                    } else {
+                        const allOnline = Array.isArray(data) ? data : [];
+                        const pkwuRows = allOnline.filter(r => String(r.mapel || '').trim().toUpperCase() === 'PKWU');
+                        combined = mergeResults(combined, pkwuRows);
+                        sourceNote.innerHTML = `<span class='text-emerald-400 font-semibold'>● Terhubung ke database online.</span> Terbaca <b>${pkwuRows.length}</b> hasil PKWU dari Supabase + daftar ${studentDatabase.length} siswa.`;
+                    }
+                } catch (e) {
+                    console.error("Supabase dashboard error:", e);
+                    sourceNote.innerHTML = `<span class='text-red-400 font-semibold'>● Koneksi database gagal.</span> <span class='text-red-300'>${String(e?.message || e).replace(/</g,'&lt;')}</span>`;
+                }
+            } else {
+                sourceNote.innerHTML = "<span class='text-amber-400 font-semibold'>● Database online belum dikonfigurasi.</span>";
+            }
+
+            // Urutkan persis sesuai daftar siswa.
+            combined.sort((a, b) => {
+                const ai = studentDatabase.findIndex(s => String(s.nis).trim() === String(a.nis).trim());
+                const bi = studentDatabase.findIndex(s => String(s.nis).trim() === String(b.nis).trim());
+                return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
+            });
+            teacherResultsCache = combined;
+            renderTeacherTable(combined);
+        }
+
+        function predikatFromScore(skor, sudahMengerjakan=true) {
+            if (!sudahMengerjakan) return "⏳ Belum Mengerjakan";
+            if (skor >= 90) return "🌟 Sangat Memuaskan";
+            if (skor >= 70) return "👍 Baik";
+            return "📚 Perlu Penguatan";
+        }
+
+        function renderTeacherTable(results) {
+            const tbody = document.getElementById('teacher-results-tbody');
+            const emptyState = document.getElementById('teacher-empty-state');
+            tbody.innerHTML = '';
+
+            if (!results || results.length === 0) {
+                emptyState.classList.remove('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+                results.forEach((r, i) => {
+                    const sudahMengerjakan = Boolean(r.waktu);
+                    const waktuText = r.waktuTampil || (r.waktu ? new Date(r.waktu).toLocaleString("id-ID") : "—");
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-slate-700/50 transition-colors";
+                    tr.innerHTML = `
+                        <td class="px-4 py-3 text-slate-400">${i + 1}</td>
+                        <td class="px-4 py-3 font-semibold text-white">${r.nama || '-'}</td>
+                        <td class="px-4 py-3 font-mono text-slate-400">${r.nis || '-'}</td>
+                        <td class="px-4 py-3 text-center font-bold ${sudahMengerjakan ? 'text-tech-400' : 'text-slate-500'}">${sudahMengerjakan ? r.skor : '—'}</td>
+                        <td class="px-4 py-3 text-center">${sudahMengerjakan ? r.dekomposisi : '—'}</td>
+                        <td class="px-4 py-3 text-center">${sudahMengerjakan ? r.pola : '—'}</td>
+                        <td class="px-4 py-3 text-center">${sudahMengerjakan ? r.abstraksi : '—'}</td>
+                        <td class="px-4 py-3 text-center">${sudahMengerjakan ? r.algoritma : '—'}</td>
+                        <td class="px-4 py-3 text-xs">${predikatFromScore(r.skor, sudahMengerjakan)}</td>
+                        <td class="px-4 py-3 text-xs text-slate-400">${waktuText}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            const attempted = results.filter(r => Boolean(r.waktu));
+            const total = attempted.length;
+            const rata = total > 0 ? Math.round(attempted.reduce((sum, r) => sum + (Number(r.skor) || 0), 0) / total) : 0;
+            const tertinggi = total > 0 ? Math.max(...attempted.map(r => Number(r.skor) || 0)) : 0;
+            const belumTuntas = attempted.filter(r => (Number(r.skor) || 0) < 70).length;
+            document.getElementById('stat-total-siswa').innerText = `${total}/${studentDatabase.length}`;
+            document.getElementById('stat-rata-rata').innerText = rata;
+            document.getElementById('stat-skor-tertinggi').innerText = tertinggi;
+            document.getElementById('stat-belum-tuntas').innerText = belumTuntas;
+        }
+
+        function filterTeacherTable() {
+            const keyword = document.getElementById('teacher-search-input').value.trim().toLowerCase();
+            if (!keyword) {
+                renderTeacherTable(teacherResultsCache);
+                return;
+            }
+            const filtered = teacherResultsCache.filter(r =>
+                (r.nama || "").toLowerCase().includes(keyword) ||
+                (r.nis || "").toLowerCase().includes(keyword)
+            );
+            renderTeacherTable(filtered);
+        }
+
+        function exportResultsCSV() {
+            if (!teacherResultsCache || teacherResultsCache.length === 0) {
+                alert("Belum ada data siswa untuk diekspor.");
+                return;
+            }
+            const header = ["No", "Nama", "NISN", "Skor", "Budaya & Ide", "Riset Pasar", "Produksi", "Keuangan & Bisnis", "Status/Predikat", "Waktu"];
+            const rows = teacherResultsCache.map((r, i) => {
+                const done = Boolean(r.waktu);
+                return [i + 1, r.nama || "", r.nis || "", done ? r.skor : "", done ? r.dekomposisi : "", done ? r.pola : "", done ? r.abstraksi : "", done ? r.algoritma : "", predikatFromScore(r.skor, done), r.waktuTampil || r.waktu || ""];
+            });
+            const csvContent = [header, ...rows]
+                .map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
+                .join("\n");
+            const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Rekap_Nilai_PKWU_${new Date().toISOString().slice(0, 10)}.csv`;
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+        }
+
+        /* ===================================================
+           1. DETAIL PILLAR DATA & INTERACTOR
+           =================================================== */
+        const pillarDetails = {
+            dekomposisi: {
+                title: "1. Identifikasi Ide (Decomposition)",
+                color: "text-blue-400",
+                desc: "Identifikasi Ide adalah teknik memecah masalah yang kompleks atau sistem yang besar menjadi bagian-bagian yang lebih kecil, lebih sederhana, dan lebih mudah untuk dianalisis dan diselesaikan secara independen.",
+                example: "<strong>Contoh Kejuruan (Sistem Kasir Minimarket):</strong> Daripada membuat seluruh sistem sekaligus, pengembang memecahnya menjadi modul: (1) Modul Scan Barcode, (2) Modul Hitung Diskon, (3) Modul Cetak Struk, dan (4) Modul Laporan Stok."
+            },
+            pola: {
+                title: "2. Riset Pasar (Pattern Recognition)",
+                color: "text-emerald-400",
+                desc: "Pengenalan pola adalah kemampuan untuk menemukan kesamaan, keteraturan, atau tren di antara masalah-masalah kecil yang telah didekomposisi atau dari pengalaman masalah masa lalu.",
+                example: "<strong>Contoh Sehari-hari (Manajemen Waktu Belajar):</strong> Mengamati bahwa konsentrasi belajar selalu menurun setelah pukul 21.00, sehingga jadwal belajar rumit dipindahkan ke pukul 16.00."
+            },
+            abstraksi: {
+                title: "3. Abstraksi (Abstraction)",
+                color: "text-amber-400",
+                desc: "Abstraksi adalah proses menyaring dan menyembunyikan detail-detail yang tidak relevan, sehingga kita hanya fokus pada karakteristik umum dan informasi yang penting bagi penyelesaian masalah.",
+                example: "<strong>Contoh Kejuruan (Peta Navigasi Kurir Delivery):</strong> Peta digital hanya menampilkan nama jalan, kemacetan, dan jarak, tanpa menampilkan jenis pohon di pinggir jalan atau warna cat rumah warga."
+            },
+            algoritma: {
+                title: "4. Rencana Produksi (Algorithm Design)",
+                color: "text-purple-400",
+                desc: "Algoritma adalah penyusunan langkah-langkah instruksi secara sistematis, logis, dan terurut yang dapat diikuti oleh manusia maupun komputer untuk menghasilkan solusi yang konsisten.",
+                example: "<strong>Contoh Kejuruan (Standard Operating Procedure / SOP BENGKEL):</strong> Langkah 1: Cek tegangan aki -> Langkah 2: Jika rendah, lakukan charger -> Langkah 3: Jika normal, periksa busi -> Langkah 4: Uji kelistrikan starter."
+            }
+        };
+
+        function showPillarDetail(pillarKey) {
+            const data = pillarDetails[pillarKey];
+            const box = document.getElementById('pillar-detail-content');
+            box.innerHTML = `
+                <div class="transition-all duration-300">
+                    <h3 class="text-2xl font-bold ${data.color}">${data.title}</h3>
+                    <p class="text-slate-300 text-sm leading-relaxed">${data.desc}</p>
+                    <div class="mt-4 p-4 rounded-xl bg-slate-800/80 border border-slate-700 text-xs sm:text-sm text-slate-200">
+                        ${data.example}
+                    </div>
+                </div>
+            `;
+        }
+
+        /* Switch Tab Contoh Case */
+        function switchCaseTab(type) {
+            const btnSehari = document.getElementById('tab-sehari-hari');
+            const btnKejuruan = document.getElementById('tab-kejuruan');
+            const contentSehari = document.getElementById('content-sehari-hari');
+            const contentKejuruan = document.getElementById('content-kejuruan');
+
+            if (type === 'sehari-hari') {
+                btnSehari.className = "flex-1 py-3 px-4 rounded-xl font-semibold text-sm transition-all bg-white text-tech-600 shadow-sm";
+                btnKejuruan.className = "flex-1 py-3 px-4 rounded-xl font-semibold text-sm transition-all text-slate-600 hover:text-slate-900";
+                contentSehari.classList.remove('hidden');
+                contentKejuruan.classList.add('hidden');
+            } else {
+                btnKejuruan.className = "flex-1 py-3 px-4 rounded-xl font-semibold text-sm transition-all bg-white text-tech-600 shadow-sm";
+                btnSehari.className = "flex-1 py-3 px-4 rounded-xl font-semibold text-sm transition-all text-slate-600 hover:text-slate-900";
+                contentKejuruan.classList.remove('hidden');
+                contentSehari.classList.add('hidden');
+            }
+        }
+
+        /* ===================================================
+           2. INTERACTIVE SIMULATION LAB LOGIC
+           =================================================== */
+        let currentScenario = 1;
+        let currentSimStep = 1;
+        const simSelections = { step1: null, step2: null, step3: null, step4: null };
+
+        const scenarios = {
+            1: {
+                title: "Skenario 1: Optimasi Sistem Layanan Katering & Restoran",
+                steps: [
+                    {
+                        pillar: "Identifikasi Ide",
+                        instruction: "Restoran menerima pesanan katering 500 porsi paket makan siang kantor. Pilih tindakan Identifikasi Ide yang paling tepat untuk mengurai masalah ini:",
+                        options: [
+                            { text: "Membeli semua bahan sekaligus tanpa mencatat rincian menu.", correct: false },
+                            { text: "Memecah proses menjadi 4 sub-tugas: (A) Pembelian Bahan, (B) Persiapan/Memasak, (C) Pengemasan, (D) Armada Pengiriman.", correct: true },
+                            { text: "Langsung memasak tanpa membagi tugas kepada staf koki.", correct: false }
+                        ],
+                        explanation: "Identifikasi Ide memecah proyek besar menjadi 4 tahapan sub-proses yang terstruktur."
+                    },
+                    {
+                        pillar: "Riset Pasar",
+                        instruction: "Berdasarkan data historis pesanan bulan lalu, jam berapa pengiriman katering sering terjebak kemacetan lalu lintas?",
+                        options: [
+                            { text: "Pola data menunjukkan jam 11.00 - 12.30 adalah jam puncak kemacetan jalan utama.", correct: true },
+                            { text: "Kemacetan terjadi secara acak dan tidak pernah memiliki pola sama sekali.", correct: false },
+                            { text: "Pola menunjukkan jalan selalu sepi pada jam istirahat makan siang.", correct: false }
+                        ],
+                        explanation: "Menemukan pola jam sibuk membantu merencanakan waktu keberangkatan armada lebih awal."
+                    },
+                    {
+                        pillar: "Abstraksi",
+                        instruction: "Saat merancang rute dan jadwal pengemasan, informasi mana yang HARUS DIABSTRAKSIKAN (diabaikan)?",
+                        options: [
+                            { text: "Alamat tujuan pengiriman dan jumlah porsi.", correct: false },
+                            { text: "Waktu makanan harus sampai di lokasi.", correct: false },
+                            { text: "Warna mobil pribadi milik pemesan dan hobi dari staf admin katering.", correct: true }
+                        ],
+                        explanation: "Abstraksi mengabaikan detail yang tidak mempengaruhi keberhasilan pengiriman makanan."
+                    },
+                    {
+                        pillar: "Rencana Produksi",
+                        instruction: "Susun algoritma urutan instruksi kerja dapur katering berikut yang logis:",
+                        options: [
+                            { text: "Kemas makanan -> Kirim -> Masak -> Beli bahan.", correct: false },
+                            { text: "Beli bahan segar -> Olah & Masak -> Kemas porsi presisi -> Kirim sebelum pukul 11.00.", correct: true },
+                            { text: "Kirim makanan -> Beli bahan -> Masak.", correct: false }
+                        ],
+                        explanation: "Algoritma harus berurutan secara kronologis dan logis dari hulu ke hilir."
+                    }
+                ]
+            },
+            2: {
+                title: "Skenario 2: Optimasi Rute Pengiriman Kurir Toko Online",
+                steps: [
+                    {
+                        pillar: "Identifikasi Ide",
+                        instruction: "Seorang kurir harus mengantar 30 paket dalam satu wilayah kecamatan. Langkah dekomposisi awal adalah:",
+                        options: [
+                            { text: "Mengelompokkan paket berdasarkan kelurahan/zona area terdekat.", correct: true },
+                            { text: "Mengantar paket secara acak berdasarkan warna bungkusnya.", correct: false },
+                            { text: "Membiarkan semua paket menumpuk di dalam gudang tanpa dipilah.", correct: false }
+                        ],
+                        explanation: "Membagi wilayah menjadi zona-zona kecil mempermudah pemetaan rute."
+                    },
+                    {
+                        pillar: "Riset Pasar",
+                        instruction: "Kurir mengetahui pola penerima paket di perkantoran vs pemukiman warga:",
+                        options: [
+                            { text: "Paket kantor lebih baik diantar jam kerja (08.00-16.00), sedangkan rumah warga sore hari.", correct: true },
+                            { text: "Orang di kantor lebih suka diantar jam 2 malam.", correct: false },
+                            { text: "Semua penerima paket selalu berada di rumah 24 jam nonstop.", correct: false }
+                        ],
+                        explanation: "Pola keberadaan penerima memaksimalkan persentase paket terantar sukses."
+                    },
+                    {
+                        pillar: "Abstraksi",
+                        instruction: "Dalam aplikasi navigasi kurir, data mana yang paling utama difokuskan?",
+                        options: [
+                            { text: "Riwayat pendidikan pembeli paket.", correct: false },
+                            { text: "Lokasi GPS, status lalu lintas real-time, dan estimasi waktu tempuh.", correct: true },
+                            { text: "Merk sepatu yang dipakai oleh penerima paket.", correct: false }
+                        ],
+                        explanation: "Hanya data GPS dan lalu lintas yang relevan untuk mempercepat pengiriman."
+                    },
+                    {
+                        pillar: "Rencana Produksi",
+                        instruction: "Manakah prosedur pengantaran paket (Algoritma) yang paling efisien?",
+                        options: [
+                            { text: "Urutkan paket berdasarkan zona terdekat -> Scan barcode -> Hubungi penerima -> Serahkan paket & foto bukti.", correct: true },
+                            { text: "Foto paket -> Cari rumah -> Ambil paket di gudang -> Hubungi penerima.", correct: false },
+                            { text: "Serahkan paket -> Scan barcode tanpa mengecek alamat.", correct: false }
+                        ],
+                        explanation: "Prosedur baku yang sistematis mencegah kesalahan alamat dan mempercepat kerja."
+                    }
+                ]
+            }
+        };
+
+        function loadScenario(scenNum) {
+            currentScenario = scenNum;
+            currentSimStep = 1;
+            simSelections.step1 = null;
+            simSelections.step2 = null;
+            simSelections.step3 = null;
+            simSelections.step4 = null;
+
+            document.getElementById('sim-title').innerText = scenarios[scenNum].title;
+            document.getElementById('btn-scen-1').className = scenNum === 1 ? "px-4 py-2 rounded-xl text-xs font-semibold bg-tech-600 text-white" : "px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700";
+            document.getElementById('btn-scen-2').className = scenNum === 2 ? "px-4 py-2 rounded-xl text-xs font-semibold bg-tech-600 text-white" : "px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700";
+
+            renderSimStep();
+        }
+
+        function renderSimStep() {
+            const stepData = scenarios[currentScenario].steps[currentSimStep - 1];
+            const container = document.getElementById('sim-body-container');
+
+            // Update step indicators
+            for (let i = 1; i <= 4; i++) {
+                const ind = document.getElementById(`step-ind-${i}`);
+                if (i <= currentSimStep) {
+                    ind.className = "h-2 rounded-full bg-tech-500 transition-all";
+                } else {
+                    ind.className = "h-2 rounded-full bg-slate-800 transition-all";
+                }
+            }
+
+            document.getElementById('sim-step-text').innerText = `Langkah ${currentSimStep} dari 4 • Pilar: ${stepData.pillar}`;
+            document.getElementById('btn-sim-prev').disabled = currentSimStep === 1;
+
+            let html = `
+                <div class="space-y-6">
+                    <div class="flex items-center gap-3">
+                        <span class="px-3 py-1 rounded-lg bg-tech-500/20 text-tech-400 font-mono text-xs font-bold">Pilar ${currentSimStep}: ${stepData.pillar}</span>
+                    </div>
+                    <p class="text-base sm:text-lg text-slate-200 font-medium">${stepData.instruction}</p>
+                    <div class="space-y-3">
+            `;
+
+            stepData.options.forEach((opt, idx) => {
+                const isSelected = simSelections[`step${currentSimStep}`] === idx;
+                let btnStyle = "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750";
+                if (isSelected) {
+                    btnStyle = opt.correct ? "bg-emerald-950 border-emerald-500 text-emerald-200" : "bg-red-950 border-red-500 text-red-200";
+                }
+
+                html += `
+                    <button onclick="selectSimOption(${idx})" class="w-full text-left p-4 rounded-xl border ${btnStyle} transition-all text-sm flex items-start gap-3">
+                        <span class="w-5 h-5 rounded-full border border-slate-500 flex items-center justify-center text-xs font-mono shrink-0 mt-0.5">${String.fromCharCode(65 + idx)}</span>
+                        <span>${opt.text}</span>
+                    </button>
+                `;
+            });
+
+            if (simSelections[`step${currentSimStep}`] !== null) {
+                const selectedIdx = simSelections[`step${currentSimStep}`];
+                const selectedOpt = stepData.options[selectedIdx];
+                html += `
+                    <div class="p-4 rounded-xl ${selectedOpt.correct ? 'bg-emerald-900/40 border border-emerald-700/50 text-emerald-300' : 'bg-red-900/40 border border-red-700/50 text-red-300'} text-xs sm:text-sm">
+                        <strong>${selectedOpt.correct ? '✅ Tepat Sekali!' : '❌ Masih Kurang Tepat!'}</strong> ${stepData.explanation}
+                    </div>
+                `;
+            }
+
+            html += `</div></div>`;
+            container.innerHTML = html;
+        }
+
+        function selectSimOption(optIdx) {
+            simSelections[`step${currentSimStep}`] = optIdx;
+            renderSimStep();
+        }
+
+        function nextSimStep() {
+            if (currentSimStep < 4) {
+                currentSimStep++;
+                renderSimStep();
+            } else {
+                // Show completion modal/summary
+                document.getElementById('sim-body-container').innerHTML = `
+                    <div class="text-center py-8 space-y-4">
+                        <div class="w-16 h-16 bg-brand-500/20 text-brand-400 rounded-full flex items-center justify-center text-3xl mx-auto">🏆</div>
+                        <h4 class="text-2xl font-bold text-white">Simulasi Selesai!</h4>
+                        <p class="text-slate-300 text-sm max-w-md mx-auto">Kamu telah berhasil menerapkan 4 pilar Wirausaha Kerajinan untuk memecahkan masalah dalam ${scenarios[currentScenario].title}.</p>
+                        <button onclick="loadScenario(${currentScenario === 1 ? 2 : 1})" class="px-6 py-2.5 bg-brand-600 text-white rounded-xl text-xs font-bold hover:bg-brand-500 transition-all">
+                            Coba Skenario Berikutnya &rarr;
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        function prevSimStep() {
+            if (currentSimStep > 1) {
+                currentSimStep--;
+                renderSimStep();
+            }
+        }
+
+        /* ===================================================
+           3. INTERACTIVE 10-QUESTION QUIZ DATA & ENGINE
+           =================================================== */
+
+        const planDetails = {
+            budaya:{title:"🎭 Budaya Non Benda",body:"Budaya non benda adalah unsur budaya yang berupa gagasan, pengetahuan, nilai, tradisi, cerita, bahasa, seni pertunjukan, dan praktik sosial. Dalam usaha kerajinan, unsur tersebut dapat menjadi sumber cerita, bentuk, motif, fungsi, atau identitas produk.",tips:"Pemantik: Unsur budaya apa di daerahmu yang memiliki cerita kuat tetapi belum banyak dikembangkan menjadi produk?"},
+            ide:{title:"💡 Menentukan Ide Produk",body:"Ide produk perlu menghubungkan inspirasi budaya dengan kebutuhan pengguna. Tentukan fungsi, bentuk, bahan, ukuran, keunikan, nilai budaya, dan pembeda dari produk yang sudah ada.",tips:"Uji ide dengan kalimat: 'Produk ini dibuat untuk siapa, berguna untuk apa, dan nilai budaya apa yang disampaikan?'"},
+            pasar:{title:"🔎 Riset Pasar",body:"Riset pasar membantu mengenali target konsumen, kebutuhan, daya beli, tren, pesaing, saluran penjualan, serta respons calon pembeli. Data sederhana dapat diperoleh melalui observasi, wawancara, survei, dan uji produk.",tips:"Jangan hanya bertanya 'suka atau tidak'. Tanyakan kebutuhan, harga yang bersedia dibayar, desain, ukuran, dan alasan membeli."},
+            produksi:{title:"🛠️ Perencanaan Produksi",body:"Rencanakan bahan, alat, tenaga kerja, urutan proses, waktu pengerjaan, kapasitas, standar kualitas, kemasan, dan keselamatan kerja. Buat alternatif jika bahan atau alat utama sulit diperoleh.",tips:"Buat prototipe kecil sebelum produksi lebih banyak untuk menguji fungsi dan kualitas."},
+            usaha:{title:"💰 Rencana Bisnis",body:"Rencana usaha mencakup biaya, HPP, harga jual, sumber pendapatan, promosi, distribusi, risiko, dan evaluasi. Harga perlu mempertimbangkan biaya, nilai produk, target pasar, serta kondisi persaingan.",tips:"Keputusan usaha sebaiknya berdasarkan data, bukan sekadar perkiraan."}
+        };
+        function showPlanDetail(key){
+            const d=planDetails[key]||planDetails.budaya;
+            document.getElementById('plan-detail-content').innerHTML=`<h3 class="text-2xl font-extrabold text-amber-300">${d.title}</h3><p class="mt-3 text-slate-300 leading-relaxed">${d.body}</p><div class="mt-4 p-4 rounded-xl bg-white/10 border border-white/10 text-sm"><b class="text-amber-300">💭 ${d.tips}</b></div>`;
+        }
+
+        const businessSteps=[
+          {title:"1. Pilih sumber inspirasi",prompt:"Mana yang paling layak menjadi sumber inspirasi produk?",options:["Cerita rakyat/legenda lokal yang dipahami maknanya","Meniru logo merek terkenal","Memilih tren tanpa hubungan budaya","Memakai simbol budaya tanpa memahami maknanya"],score:[25,5,10,0]},
+          {title:"2. Tentukan target pasar",prompt:"Siapa target awal yang paling spesifik untuk produk suvenir budaya berukuran kecil?",options:["Semua orang tanpa segmentasi","Pelajar/remaja dan wisatawan yang mencari suvenir terjangkau","Hanya perusahaan besar","Tidak perlu menentukan target"],score:[5,25,10,0]},
+          {title:"3. Rancang produk",prompt:"Konsep produk mana yang paling kuat?",options:["Indah tetapi tidak memiliki fungsi","Fungsional, estetis, mudah digunakan, dan menjelaskan cerita budayanya","Mahal agar terlihat mewah","Menyalin produk pesaing"],score:[10,25,10,0]},
+          {title:"4. Hitung biaya",prompt:"Total biaya membuat 10 produk: bahan Rp200.000 + kemasan Rp50.000 + tenaga kerja Rp100.000. Berapa HPP per produk?",options:["Rp20.000","Rp25.000","Rp35.000","Rp50.000"],score:[5,10,25,0]},
+          {title:"5. Pilih strategi promosi",prompt:"Promosi awal yang paling informatif untuk target remaja adalah...",options:["Konten video singkat tentang cerita budaya + fungsi produk + harga/cara beli","Tidak melakukan promosi","Hanya mencetak nama produk","Mengunggah foto tanpa keterangan"],score:[25,0,5,10]}
+        ];
+        let businessStep=0,businessScore=0,businessChoice=[];
+        function renderBusinessSim(){
+            const st=businessSteps[businessStep];
+            document.getElementById('business-step-text').innerText=`Langkah ${businessStep+1} dari ${businessSteps.length}`;
+            document.getElementById('sim-score').innerText=businessScore;
+            for(let i=1;i<=5;i++)document.getElementById('sim-p'+i).className=`h-2 rounded-full ${i<=businessStep+1?'bg-amber-500':'bg-slate-800'}`;
+            document.getElementById('sim-prev-new').disabled=businessStep===0;
+            document.getElementById('sim-next-new').innerText=businessStep===businessSteps.length-1?'Lihat Hasil →':'Pilih & Lanjut →';
+            document.getElementById('business-sim-body').innerHTML=`<div><span class="text-xs text-amber-400 font-mono">TANTANGAN</span><h4 class="text-2xl font-extrabold mt-1">${st.title}</h4><p class="text-slate-300 mt-3">${st.prompt}</p><div class="grid gap-3 mt-6">${st.options.map((x,i)=>`<button onclick="chooseBusiness(${i})" class="business-option text-left p-4 rounded-2xl border border-slate-700 bg-slate-900 hover:border-amber-400 hover:bg-slate-800 transition-all"><span class="inline-flex w-7 h-7 rounded-full bg-slate-800 items-center justify-center text-xs font-bold mr-2">${String.fromCharCode(65+i)}</span>${x}</button>`).join('')}</div><p id="business-choice-note" class="text-xs text-slate-500 mt-4">Pilih satu jawaban untuk melanjutkan.</p></div>`;
+        }
+        function chooseBusiness(i){
+            businessChoice[businessStep]=i;
+            businessScore=businessChoice.reduce((sum,ch,idx)=>sum+(ch==null?0:businessSteps[idx].score[ch]),0);
+            document.querySelectorAll('.business-option').forEach((b,idx)=>b.classList.toggle('border-amber-400',idx===i));
+            document.getElementById('business-choice-note').innerHTML='<span class="text-amber-300 font-semibold">Pilihan tersimpan.</span> Klik tombol lanjut di bawah.';
+        }
+        function businessNext(){
+            if(businessChoice[businessStep]==null){document.getElementById('business-choice-note').innerHTML='<span class="text-rose-300 font-semibold">Pilih salah satu opsi terlebih dahulu.</span>';return;}
+            if(businessStep<businessSteps.length-1){businessStep++;renderBusinessSim();}else showBusinessResult();
+        }
+        function businessPrev(){if(businessStep>0){businessStep--;renderBusinessSim();}}
+        function showBusinessResult(){
+            document.getElementById('business-sim-body').innerHTML=`<div class="text-center py-10"><div class="text-6xl">📦</div><h4 class="text-3xl font-black mt-3">Rencana Selesai!</h4><p class="text-slate-300 mt-2">Skor rencana usaha: <b class="text-amber-300 text-xl">${businessScore}/125</b></p><p class="max-w-xl mx-auto text-sm text-slate-400 mt-3">Gunakan skor ini sebagai bahan refleksi. Perhatikan apakah keputusanmu sudah menghubungkan nilai budaya, kebutuhan pasar, kelayakan produksi, biaya, dan promosi.</p></div>`;
+            document.getElementById('sim-result').classList.remove('hidden');
+            document.getElementById('sim-next-new').disabled=true;
+        }
+        function resetBusinessSim(){businessStep=0;businessScore=0;businessChoice=[];document.getElementById('sim-result').classList.add('hidden');document.getElementById('sim-next-new').disabled=false;renderBusinessSim();}
+
+        const quizQuestions = [
+            {pillar:"Budaya & Ide", question:"1. Manakah yang paling tepat disebut budaya non benda sebagai sumber inspirasi kerajinan?", options:["Ukuran kayu dan jenis lem","Cerita rakyat, tarian, musik, bahasa, dan tradisi","Mesin pemotong dan amplas","Harga bahan baku"], correct:1, explanation:"Budaya non benda berupa gagasan, tradisi, seni, cerita, bahasa, pengetahuan, dan praktik budaya yang dapat menjadi sumber inspirasi."},
+            {pillar:"Budaya & Ide", question:"2. Seorang siswa ingin membuat produk kerajinan terinspirasi tari tradisional. Langkah perencanaan awal yang paling tepat adalah...", options:["Langsung memproduksi 100 unit","Mencari makna, unsur visual, nilai budaya, dan peluang pengembangannya","Menentukan harga setinggi mungkin","Meniru produk pesaing secara persis"], correct:1, explanation:"Inspirasi budaya perlu dipahami terlebih dahulu agar konsep produk memiliki makna dan tidak sekadar menyalin."},
+            {pillar:"Riset Pasar", question:"3. Mengapa target konsumen perlu ditentukan sebelum produk dibuat?", options:["Agar desain, fungsi, harga, dan promosi sesuai calon pembeli","Agar semua orang pasti membeli","Agar biaya produksi selalu nol","Agar produk tidak perlu diuji"], correct:0, explanation:"Target konsumen membantu wirausahawan mengambil keputusan desain, fungsi, harga, kemasan, dan promosi."},
+            {pillar:"Riset Pasar", question:"4. Hasil survei menunjukkan siswa lebih menyukai suvenir budaya yang kecil, fungsional, dan terjangkau. Keputusan yang paling sesuai adalah...", options:["Membuat produk sangat besar dan mahal","Membuat produk kecil dengan fungsi jelas dan harga sesuai daya beli","Mengabaikan hasil survei","Mengurangi kualitas tanpa batas"], correct:1, explanation:"Perencanaan produk sebaiknya mempertimbangkan kebutuhan dan kemampuan target pasar."},
+            {pillar:"Produksi", question:"5. Dalam rencana produksi, hal yang perlu ditentukan adalah...", options:["Bahan, alat, tahapan kerja, waktu, kapasitas, dan standar kualitas","Nama teman satu kelas saja","Warna seragam sekolah","Jadwal libur nasional saja"], correct:0, explanation:"Rencana produksi menjelaskan bagaimana produk dibuat secara terukur dan konsisten."},
+            {pillar:"Produksi", question:"6. Jika bahan utama sulit diperoleh secara konsisten, tindakan perencanaan yang tepat adalah...", options:["Mengabaikan masalah sampai produksi berhenti","Mencari pemasok alternatif atau bahan substitusi yang tetap memenuhi kualitas","Menaikkan harga tanpa analisis","Menghentikan promosi selamanya"], correct:1, explanation:"Ketersediaan bahan merupakan risiko produksi sehingga perlu alternatif pemasok atau bahan yang layak."},
+            {pillar:"Keuangan & Bisnis", question:"7. Biaya bahan Rp200.000, kemasan Rp50.000, dan tenaga kerja Rp100.000 untuk 10 produk. HPP sederhana per produk adalah...", options:["Rp25.000","Rp30.000","Rp35.000","Rp40.000"], correct:2, explanation:"Total biaya Rp350.000 dibagi 10 produk = Rp35.000 per produk."},
+            {pillar:"Keuangan & Bisnis", question:"8. Jika HPP sebuah produk Rp35.000 dan biaya/keuntungan yang direncanakan membuat harga jual Rp50.000, hal yang perlu dipastikan sebelum menetapkan harga adalah...", options:["Harga sesuai nilai produk, target pasar, dan kondisi pesaing","Harga harus selalu paling mahal","Harga tidak perlu dihitung","Promosi tidak diperlukan"], correct:0, explanation:"Harga perlu mempertimbangkan biaya, nilai yang ditawarkan, daya beli target pasar, dan kondisi persaingan."},
+            {pillar:"Keuangan & Bisnis", question:"9. Strategi promosi yang paling sesuai untuk produk kerajinan budaya bagi remaja adalah...", options:["Menyembunyikan produk dari media sosial","Membuat konten visual yang menceritakan makna budaya, fungsi produk, dan cara membelinya","Tidak mencantumkan informasi produk","Hanya menunggu pembeli datang"], correct:1, explanation:"Promosi dapat menggabungkan daya tarik visual dengan storytelling budaya dan informasi produk yang jelas."},
+            {pillar:"Keuangan & Bisnis", question:"10. Sebuah produk mendapat banyak pujian tetapi penjualannya rendah. Evaluasi perencanaan usaha yang paling tepat adalah...", options:["Menganggap produk pasti gagal tanpa mencari data","Mengevaluasi target pasar, harga, desain, manfaat, distribusi, dan promosi berdasarkan data","Menambah produksi sebanyak-banyaknya","Menghapus identitas budaya dari produk"], correct:1, explanation:"Evaluasi usaha harus mencari penyebab berdasarkan data sebelum menentukan perubahan strategi."}
+        ];
+
+        let currentQuizIndex = 0;
+        let quizScore = 0;
+        let selectedQuizOption = null;
+        let pillarScores = {"Budaya & Ide":0,"Riset Pasar":0,"Produksi":0,"Keuangan & Bisnis":0};
+
+        function initQuiz() {
+            currentQuizIndex=0; quizScore=0; selectedQuizOption=null;
+            pillarScores={"Budaya & Ide":0,"Riset Pasar":0,"Produksi":0,"Keuangan & Bisnis":0};
+            document.getElementById('quiz-result-dashboard').classList.add('hidden');
+            document.getElementById('quiz-question-box').classList.remove('hidden');
+            document.getElementById('quiz-action-bar').classList.remove('hidden');
+            renderQuizQuestion();
+        }
+        function renderQuizQuestion() {
+            const q=quizQuestions[currentQuizIndex]; selectedQuizOption=null;
+            document.getElementById('quiz-question-number').innerText=`Soal ${currentQuizIndex+1} dari ${quizQuestions.length}`;
+            document.getElementById('quiz-score-badge').innerText=`Skor: ${quizScore}`;
+            document.getElementById('quiz-progress-bar').style.width=`${((currentQuizIndex+1)/quizQuestions.length)*100}%`;
+            document.getElementById('quiz-question-text').innerText=q.question;
+            const c=document.getElementById('quiz-options-container'); c.innerHTML='';
+            q.options.forEach((opt,i)=>{
+                const b=document.createElement('button');
+                b.className='w-full text-left p-4 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50 transition-all text-sm font-medium text-slate-700 flex items-start gap-3';
+                b.onclick=()=>selectQuizOption(i,b);
+                b.innerHTML=`<span class="w-6 h-6 rounded-full bg-slate-100 border border-slate-300 text-slate-600 flex items-center justify-center text-xs font-bold shrink-0">${String.fromCharCode(65+i)}</span><span>${opt}</span>`;
+                c.appendChild(b);
+            });
+            document.getElementById('quiz-feedback-box').className="hidden mt-6 p-4 rounded-xl text-sm leading-relaxed";
+            document.getElementById('btn-quiz-submit').disabled=true;
+        }
+        function selectQuizOption(i,b) {
+            selectedQuizOption=i;
+            document.querySelectorAll('#quiz-options-container button').forEach(x=>x.className='w-full text-left p-4 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50 transition-all text-sm font-medium text-slate-700 flex items-start gap-3');
+            b.className='w-full text-left p-4 rounded-xl border-2 border-amber-500 bg-amber-50 text-amber-950 transition-all text-sm font-semibold flex items-start gap-3 shadow-sm';
+            document.getElementById('btn-quiz-submit').disabled=false;
+        }
+        function submitQuizAnswer() {
+            if(selectedQuizOption===null)return;
+            const q=quizQuestions[currentQuizIndex], ok=selectedQuizOption===q.correct, fb=document.getElementById('quiz-feedback-box');
+            if(ok){quizScore+=10; pillarScores[q.pillar]+=10; fb.className="mt-6 p-4 rounded-xl text-sm bg-emerald-50 border border-emerald-200 text-emerald-900"; fb.innerHTML=`<b>✅ Benar! +10</b><br>${q.explanation}`;}
+            else{fb.className="mt-6 p-4 rounded-xl text-sm bg-red-50 border border-red-200 text-red-900"; fb.innerHTML=`<b>❌ Belum tepat.</b> Jawaban yang benar: <b>${String.fromCharCode(65+q.correct)}</b>.<br>${q.explanation}`;}
+            fb.classList.remove('hidden'); document.getElementById('btn-quiz-submit').disabled=true;
+            setTimeout(()=>{if(currentQuizIndex<quizQuestions.length-1){currentQuizIndex++;renderQuizQuestion();}else showQuizResults();},1800);
+        }
+        async function saveQuizResultForTeacher(){
+            if(!currentUser)return {ok:false, reason:"no_student"};
+            const result={nis:String(currentUser.nis),nama:currentUser.nama,mapel:"PKWU",materi:"Wirausaha Kerajinan dengan Inspirasi Budaya Non Benda - Perencanaan Usaha Kerajinan",kelas:"X / Fase E",skor:Number(quizScore),dekomposisi:Number(pillarScores["Budaya & Ide"]||0),pola:Number(pillarScores["Riset Pasar"]||0),abstraksi:Number(pillarScores["Produksi"]||0),algoritma:Number(pillarScores["Keuangan & Bisnis"]||0),waktu:new Date().toISOString(),waktuTampil:new Date().toLocaleString("id-ID")};
+            const key="bk_quiz_results_v1"; let results=[];
+            try{results=JSON.parse(localStorage.getItem(key)||"[]");if(!Array.isArray(results))results=[];}catch(e){results=[];}
+            results=results.filter(x=>String(x.nis||"")!==result.nis); results.push(result);
+            localStorage.setItem(key,JSON.stringify(results));
+            const online=await saveQuizResultOnline(result);
+            return {...online, local:true};
+        }
+        async function showQuizResults(){
+            document.getElementById('quiz-question-box').classList.add('hidden'); document.getElementById('quiz-action-bar').classList.add('hidden'); document.getElementById('quiz-result-dashboard').classList.remove('hidden');
+            document.getElementById('final-score-val').innerText=quizScore;
+            saveQuizResultForTeacher().then(status=>{
+                const note=document.getElementById('teacher-source-note');
+                if(status && status.ok) {
+                    note.innerHTML="<span class='text-emerald-400 font-semibold'>● Nilai berhasil tersimpan ke database online.</span> Guru dapat melihat nilai ini dari dashboard pada perangkat lain.";
+                } else if(status && status.local) {
+                    const detail = status.reason ? ` <span class='block mt-1 text-xs text-red-300'>Detail: ${String(status.reason).replace(/</g,'&lt;')}</span>` : "";
+                    note.innerHTML="<span class='text-amber-400 font-semibold'>● Nilai tersimpan di perangkat ini, tetapi belum masuk database online.</span>" + detail;
+                }
+            }).catch(()=>{});
+            if(currentUser){document.getElementById('quiz-student-name').innerText=currentUser.nama;document.getElementById('quiz-student-nis').innerText=currentUser.nis;}
+            let predikat=quizScore>=90?"🌟 Sangat Baik":quizScore>=70?"👍 Baik":"📚 Perlu Penguatan";
+            document.getElementById('final-status-text').innerHTML=`Predikat: <strong>${predikat}</strong>`;
+            document.getElementById('score-dekomposisi').innerText=`${pillarScores["Budaya & Ide"]} poin`;
+            document.getElementById('score-pola').innerText=`${pillarScores["Riset Pasar"]} poin`;
+            document.getElementById('score-abstraksi').innerText=`${pillarScores["Produksi"]} poin`;
+            document.getElementById('score-algoritma').innerText=`${pillarScores["Keuangan & Bisnis"]} poin`;
+        }
+
+        /* ===================================================
+           4. CERTIFICATE GENERATION & JPEG DOWNLOAD LOGIC
+           =================================================== */
+        function openCertificateModal() {
+            const modal = document.getElementById('certificate-modal');
+            modal.classList.remove('hidden');
+            drawCertificateCanvas();
+        }
+
+        function closeCertificateModal() {
+            document.getElementById('certificate-modal').classList.add('hidden');
+        }
+
+        function drawCertificateCanvas() {
+            const canvas = document.getElementById('cert-canvas');
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
+            const studentName = currentUser ? currentUser.nama : "Siswa";
+            const studentNis = currentUser ? currentUser.nis : "-";
+            const score = quizScore;
+            const date = new Date().toLocaleDateString("id-ID", {day:"2-digit", month:"long", year:"numeric"});
+            const predikat = score >= 90 ? "Sangat Baik" : score >= 70 ? "Baik" : "Perlu Penguatan";
+
+            // Background
+            ctx.clearRect(0, 0, w, h);
+            ctx.fillStyle = "#fffdf7";
+            ctx.fillRect(0, 0, w, h);
+
+            // Decorative borders
+            ctx.strokeStyle = "#d97706";
+            ctx.lineWidth = 12;
+            ctx.strokeRect(24, 24, w-48, h-48);
+            ctx.strokeStyle = "#fbbf24";
+            ctx.lineWidth = 3;
+            ctx.strokeRect(45, 45, w-90, h-90);
+
+            // Header
+            ctx.textAlign = "center";
+            ctx.fillStyle = "#92400e";
+            ctx.font = "bold 30px Arial, sans-serif";
+            ctx.fillText("SERTIFIKAT APRESIASI", w/2, 125);
+            ctx.fillStyle = "#0f172a";
+            ctx.font = "bold 52px Georgia, serif";
+            ctx.fillText("Penyelesaian Evaluasi PKWU", w/2, 185);
+
+            ctx.fillStyle = "#64748b";
+            ctx.font = "20px Arial, sans-serif";
+            ctx.fillText("Perencanaan Usaha Kerajinan dengan Inspirasi Budaya Non Benda", w/2, 225);
+
+            // Student name
+            ctx.fillStyle = "#0f172a";
+            ctx.font = "bold 42px Arial, sans-serif";
+            ctx.fillText(studentName, w/2, 330);
+            ctx.fillStyle = "#64748b";
+            ctx.font = "20px Arial, sans-serif";
+            ctx.fillText("NISN: " + studentNis, w/2, 370);
+
+            // Score box
+            ctx.fillStyle = "#fffbeb";
+            ctx.strokeStyle = "#f59e0b";
+            ctx.lineWidth = 2;
+            ctx.roundRect(390, 415, 420, 135, 18);
+            ctx.fill(); ctx.stroke();
+            ctx.fillStyle = "#b45309";
+            ctx.font = "bold 58px Arial, sans-serif";
+            ctx.fillText(score + "/100", w/2, 480);
+            ctx.fillStyle = "#475569";
+            ctx.font = "bold 20px Arial, sans-serif";
+            ctx.fillText("Predikat: " + predikat, w/2, 520);
+
+            ctx.fillStyle = "#475569";
+            ctx.font = "18px Arial, sans-serif";
+            ctx.fillText("Telah menyelesaikan kuis interaktif PKWU dengan materi yang dipelajari.", w/2, 610);
+            ctx.fillText("Nunukan, " + date, w/2, 655);
+
+            // Teacher signature
+            ctx.textAlign = "left";
+            ctx.fillStyle = "#0f172a";
+            ctx.font = "bold 25px Arial, sans-serif";
+            ctx.fillText("Abdul Rahman", 870, 755);
+            ctx.beginPath();
+            ctx.moveTo(850, 765); ctx.lineTo(1080, 765);
+            ctx.strokeStyle = "#0f172a"; ctx.lineWidth = 1.5; ctx.stroke();
+            ctx.fillStyle = "#64748b";
+            ctx.font = "14px Arial, sans-serif";
+            ctx.fillText("Guru Pengampu PKWU", 890, 790);
+        }
+
+        async function shareCertificate() {
+            const canvas = document.getElementById('cert-canvas');
+            canvas.toBlob(async (blob) => {
+                if (!blob) return;
+                const studentName = currentUser ? currentUser.nama.replace(/[^a-zA-Z0-9]/g, "_") : "Siswa";
+                const file = new File([blob], `Sertifikat_PKWU_${studentName}.jpg`, {type:"image/jpeg"});
+                try {
+                    if (navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))) {
+                        await navigator.share({title:"Sertifikat PKWU", text:"Sertifikat penyelesaian evaluasi PKWU", files:[file]});
+                    } else {
+                        downloadCertificateJPEG();
+                    }
+                } catch (e) {
+                    if (e && e.name !== "AbortError") downloadCertificateJPEG();
+                }
+            }, "image/jpeg", 0.95);
+        }
+
+        function downloadCertificateJPEG() {
+            const canvas = document.getElementById('cert-canvas');
+            const studentNis = currentUser ? currentUser.nis : "Siswa";
+            const studentName = currentUser ? currentUser.nama.replace(/[^a-zA-Z0-9]/g, "_") : "Siswa";
+            const link = document.createElement('a');
+            link.download = `Sertifikat_PKWU_${studentName}_${studentNis}.jpg`;
+            link.href = canvas.toDataURL('image/jpeg', 0.95);
+            link.click();
+        }
+
+        function restartQuiz() {
+            initQuiz();
+        }
+
+        // Initialize default view on load
+        window.onload = function() {
+            showPlanDetail('budaya');
+            renderBusinessSim();
+            initQuiz();
+        };
+    </script>
+</body>
+</html>
