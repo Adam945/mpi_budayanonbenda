@@ -2131,7 +2131,15 @@ Kunci: B</pre>
 
         function downloadQuestionTemplateWord() {
             const content = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif"><h1>Template Soal CBT PKWU</h1><p>Petunjuk: satu soal berisi teks pertanyaan, lima pilihan A–E, dan kunci jawaban. Duplikat pola berikut untuk soal berikutnya.</p><p><b>1. Tulis teks pertanyaan di sini?</b><br>A. Pilihan jawaban A<br>B. Pilihan jawaban B<br>C. Pilihan jawaban C<br>D. Pilihan jawaban D<br>E. Pilihan jawaban E<br><b>Kunci: B</b></p><p><b>2. Tulis teks pertanyaan berikutnya?</b><br>A. Pilihan jawaban A<br>B. Pilihan jawaban B<br>C. Pilihan jawaban C<br>D. Pilihan jawaban D<br>E. Pilihan jawaban E<br><b>Kunci: D</b></p>
-<script>
+
+
+</body></html>`;
+            const blob = new Blob(['\ufeff', content], {type:'application/msword'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'Template_Soal_CBT_PKWU.doc';
+            document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        }
+
 /* Dokumen ujian STAGING: hanya membaca data siswa/mapel/ujian yang sudah tersedia. */
 let docsExamRows = [];
 let docsStudentRows = [];
@@ -2202,14 +2210,7 @@ function docsPrintMinutes(){
     docsPrintWindow('Berita Acara - '+exam.judul,body);
   }catch(err){docsNotice(err.message||String(err),false);}
 }
-</script>
 
-</body></html>`;
-            const blob = new Blob(['\ufeff', content], {type:'application/msword'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = 'Template_Soal_CBT_PKWU.doc';
-            document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-        }
 
         async function importQuestionsWord() {
             const file = document.getElementById('question-word-file')?.files?.[0];
