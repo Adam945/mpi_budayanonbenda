@@ -330,10 +330,43 @@ async function saveQuizResultOnline(result) {
         <div class="grid md:grid-cols-2 gap-3"><div class="rounded-xl border bg-slate-50 p-4"><h4 class="font-bold">Yang tersedia pada versi ini</h4><ul class="list-disc pl-5 mt-2 text-sm space-y-1"><li>Durasi pengerjaan.</li><li>Tanggal dan jam mulai ujian.</li><li>Tanggal dan jam selesai ujian.</li><li>Status Draft/Terbit/Tutup melalui Manajemen Ujian.</li></ul></div><div class="rounded-xl border border-amber-200 bg-amber-50 p-4"><h4 class="font-bold text-amber-900">Belum tersedia</h4><p class="text-sm text-amber-900 mt-2">Penetapan ruang, sesi bergelombang, dan kapasitas ruang memerlukan rancangan data dan proses backend terpisah.</p></div></div>
         <button type="button" onclick="adminShowSection('exams')" class="rounded-lg bg-blue-700 px-4 py-3 text-white font-bold">Buka Manajemen Ujian</button>
       </div>
-      <div id="admin-panel-documents" class="admin-panel hidden bg-white rounded-2xl border p-5 space-y-4">
-        <div><h3 class="text-xl font-extrabold">Cetak Dokumen Ujian</h3><p class="text-sm text-slate-600 mt-1">Pusat persiapan kartu login, daftar hadir, dan berita acara.</p></div>
-        <div class="grid md:grid-cols-3 gap-3"><div class="rounded-xl border p-4"><h4 class="font-bold">Kartu login siswa</h4><p class="text-sm text-slate-500 mt-2">Belum tersedia pada panel ini. Perlu memastikan proses pembuatan dan distribusi PIN yang aman.</p></div><div class="rounded-xl border p-4"><h4 class="font-bold">Daftar hadir</h4><p class="text-sm text-slate-500 mt-2">Belum tersedia sebagai dokumen khusus. Data peserta yang sudah ada tetap dapat dibuka melalui menu Peserta Ujian.</p></div><div class="rounded-xl border p-4"><h4 class="font-bold">Berita acara</h4><p class="text-sm text-slate-500 mt-2">Template cetak belum dihubungkan ke data ujian dan sesi.</p></div></div>
-        <button type="button" onclick="adminShowSection('participants')" class="rounded-lg bg-blue-700 px-4 py-3 text-white font-bold">Buka Peserta Ujian</button>
+      <div id="admin-panel-documents" class="admin-panel hidden bg-white rounded-2xl border p-5 space-y-5">
+        <div><h3 class="text-xl font-extrabold">Cetak Dokumen Ujian</h3><p class="text-sm text-slate-600 mt-1">Pilih ujian untuk menyiapkan dokumen administrasi. Hasil dicetak melalui fitur Print browser dan dapat disimpan sebagai PDF.</p></div>
+        <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+          <h4 class="font-bold text-blue-900">Pilih ujian</h4>
+          <div class="grid md:grid-cols-[1fr_auto] gap-3 mt-3 items-end">
+            <label class="text-sm font-semibold">Ujian<select id="docs-exam-select" class="mt-1 w-full rounded-lg border p-3 bg-white"><option value="">Klik Muat Ujian</option></select></label>
+            <button type="button" onclick="docsLoadExams()" class="rounded-lg bg-blue-700 px-4 py-3 text-white font-bold">Muat Ujian</button>
+          </div>
+          <p id="docs-notice" class="hidden mt-3 rounded-lg border p-3 text-sm" role="status"></p>
+        </div>
+        <div class="grid lg:grid-cols-3 gap-4">
+          <section class="rounded-xl border p-4 space-y-3">
+            <div class="flex items-center gap-2"><span class="text-2xl">🪪</span><h4 class="font-bold">Kartu Login Siswa</h4></div>
+            <p class="text-sm text-slate-600">Kartu akan memuat identitas siswa dan PIN login. Pembuatan PIN belum diaktifkan karena mekanisme hash dan reset PIN siswa harus disamakan dengan layanan login siswa.</p>
+            <div class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">Demi keamanan, dashboard tidak akan menampilkan NISN sebagai pengganti PIN atau membaca nilai <code>pin_hash</code>.</div>
+            <button type="button" disabled class="w-full rounded-lg bg-slate-200 px-4 py-3 font-bold text-slate-500 cursor-not-allowed">Menunggu integrasi PIN aman</button>
+          </section>
+          <section class="rounded-xl border p-4 space-y-3">
+            <div class="flex items-center gap-2"><span class="text-2xl">📋</span><h4 class="font-bold">Daftar Hadir</h4></div>
+            <p class="text-sm text-slate-600">Menyusun daftar siswa aktif berdasarkan kelas, dilengkapi kolom kehadiran dan tanda tangan.</p>
+            <label class="block text-sm font-semibold">Kelas siswa<select id="docs-attendance-class" class="mt-1 w-full rounded-lg border p-3 bg-white"><option value="">Muat data siswa</option></select></label>
+            <button type="button" onclick="docsPrintAttendance()" class="w-full rounded-lg bg-emerald-700 px-4 py-3 font-bold text-white">Cetak Daftar Hadir</button>
+            <p class="text-xs text-amber-700">Catatan: karena alokasi peserta khusus per ujian belum tersedia, daftar ini diambil dari siswa aktif pada kelas yang dipilih, bukan daftar penugasan peserta ujian.</p>
+          </section>
+          <section class="rounded-xl border p-4 space-y-3">
+            <div class="flex items-center gap-2"><span class="text-2xl">📝</span><h4 class="font-bold">Berita Acara</h4></div>
+            <p class="text-sm text-slate-600">Membuat berita acara berdasarkan data ujian yang dipilih. Informasi pelaksanaan dan kejadian dapat dilengkapi sebelum dicetak.</p>
+            <label class="block text-sm font-semibold">Tanggal pelaksanaan<input id="docs-ba-date" type="date" class="mt-1 w-full rounded-lg border p-3 bg-white"></label>
+            <label class="block text-sm font-semibold">Waktu mulai<input id="docs-ba-start" type="time" class="mt-1 w-full rounded-lg border p-3 bg-white"></label>
+            <label class="block text-sm font-semibold">Waktu selesai<input id="docs-ba-end" type="time" class="mt-1 w-full rounded-lg border p-3 bg-white"></label>
+            <label class="block text-sm font-semibold">Nama pengawas<input id="docs-ba-supervisor" class="mt-1 w-full rounded-lg border p-3" placeholder="Nama pengawas"></label>
+            <label class="block text-sm font-semibold">Jumlah hadir<input id="docs-ba-present" type="number" min="0" class="mt-1 w-full rounded-lg border p-3" placeholder="0"></label>
+            <label class="block text-sm font-semibold">Jumlah tidak hadir<input id="docs-ba-absent" type="number" min="0" class="mt-1 w-full rounded-lg border p-3" placeholder="0"></label>
+            <label class="block text-sm font-semibold">Catatan kejadian<textarea id="docs-ba-notes" rows="3" class="mt-1 w-full rounded-lg border p-3" placeholder="Kendala atau kejadian selama ujian (jika ada)"></textarea></label>
+            <button type="button" onclick="docsPrintMinutes()" class="w-full rounded-lg bg-amber-600 px-4 py-3 font-bold text-white">Cetak Berita Acara</button>
+          </section>
+        </div>
       </div>
       <div id="admin-panel-activation" class="admin-panel hidden bg-white rounded-2xl border p-5 space-y-4">
         <div><h3 class="text-xl font-extrabold">Aktivasi Ujian & Token</h3><p class="text-sm text-slate-600 mt-1">Status ujian yang tersedia saat ini adalah Draft, Terbit, dan Tutup. Token ujian khusus untuk proktor belum diimplementasikan dan tidak boleh dianggap aktif.</p></div>
@@ -1633,6 +1666,7 @@ Kunci: B</pre>
             if (heading) heading.textContent = titles[section] || titles.overview;
             if (['reports','participants','monitoring','students'].includes(section)) { try { adminRefreshExams(); } catch (_) {} }
             if (section === 'students') { adminRefreshStudents(); }
+            if (section === 'documents') { docsLoadExams(); }
         }
 
         function showAdminRecoveryMessage(message, ok = false) {
@@ -2096,7 +2130,81 @@ Kunci: B</pre>
         }
 
         function downloadQuestionTemplateWord() {
-            const content = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif"><h1>Template Soal CBT PKWU</h1><p>Petunjuk: satu soal berisi teks pertanyaan, lima pilihan A–E, dan kunci jawaban. Duplikat pola berikut untuk soal berikutnya.</p><p><b>1. Tulis teks pertanyaan di sini?</b><br>A. Pilihan jawaban A<br>B. Pilihan jawaban B<br>C. Pilihan jawaban C<br>D. Pilihan jawaban D<br>E. Pilihan jawaban E<br><b>Kunci: B</b></p><p><b>2. Tulis teks pertanyaan berikutnya?</b><br>A. Pilihan jawaban A<br>B. Pilihan jawaban B<br>C. Pilihan jawaban C<br>D. Pilihan jawaban D<br>E. Pilihan jawaban E<br><b>Kunci: D</b></p></body></html>`;
+            const content = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif"><h1>Template Soal CBT PKWU</h1><p>Petunjuk: satu soal berisi teks pertanyaan, lima pilihan A–E, dan kunci jawaban. Duplikat pola berikut untuk soal berikutnya.</p><p><b>1. Tulis teks pertanyaan di sini?</b><br>A. Pilihan jawaban A<br>B. Pilihan jawaban B<br>C. Pilihan jawaban C<br>D. Pilihan jawaban D<br>E. Pilihan jawaban E<br><b>Kunci: B</b></p><p><b>2. Tulis teks pertanyaan berikutnya?</b><br>A. Pilihan jawaban A<br>B. Pilihan jawaban B<br>C. Pilihan jawaban C<br>D. Pilihan jawaban D<br>E. Pilihan jawaban E<br><b>Kunci: D</b></p>
+<script>
+/* Dokumen ujian STAGING: hanya membaca data siswa/mapel/ujian yang sudah tersedia. */
+let docsExamRows = [];
+let docsStudentRows = [];
+function docsEscape(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function docsNotice(message,ok=true){const el=document.getElementById('docs-notice');if(!el)return;el.textContent=message;el.className=`mt-3 rounded-lg border p-3 text-sm ${ok?'bg-emerald-50 border-emerald-200 text-emerald-800':'bg-red-50 border-red-200 text-red-800'}`;el.classList.remove('hidden');}
+async function docsLoadExams(){
+  try{
+    if(!adminAuthSession)throw new Error('Sesi administrator tidak ditemukan. Silakan login kembali.');
+    const [examRes,studentRes]=await Promise.all([
+      supabaseClient.from('cbt_ujian').select('id,judul,materi,durasi_menit,status,tanggal_mulai,tanggal_selesai,mapel_id,cbt_mata_pelajaran(kode,nama,jenjang_kelas)').order('created_at',{ascending:false}),
+      callCbtManagement('list_students')
+    ]);
+    if(examRes.error)throw examRes.error;
+    docsExamRows=examRes.data||[];
+    docsStudentRows=Array.isArray(studentRes.students)?studentRes.students:[];
+    const sel=document.getElementById('docs-exam-select'),old=sel.value;
+    sel.innerHTML='<option value="">-- Pilih ujian --</option>'+docsExamRows.map(e=>{const m=e.cbt_mata_pelajaran||{};return `<option value="${docsEscape(e.id)}">${docsEscape(m.kode||'')} — ${docsEscape(m.nama||'')} | ${docsEscape(e.judul)} [${docsEscape(String(e.status||'draft').toUpperCase())}]</option>`}).join('');
+    if(docsExamRows.some(e=>e.id===old))sel.value=old;
+    const classSel=document.getElementById('docs-attendance-class'),oldClass=classSel.value;
+    const classes=[...new Set(docsStudentRows.filter(s=>s.aktif===true).map(s=>String(s.kelas||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'id',{numeric:true}));
+    classSel.innerHTML='<option value="">-- Pilih kelas --</option>'+classes.map(c=>`<option value="${docsEscape(c)}">${docsEscape(c)}</option>`).join('');
+    if(classes.includes(oldClass))classSel.value=oldClass;
+    docsNotice(`Data berhasil dimuat: ${docsExamRows.length} ujian dan ${docsStudentRows.length} siswa.`);
+    const today=new Date();const dateEl=document.getElementById('docs-ba-date');if(dateEl&&!dateEl.value)dateEl.value=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
+  }catch(err){console.error('Dokumen ujian:',err);docsNotice('Gagal memuat data: '+(err.message||String(err)),false);}
+}
+function docsSelectedExam(){
+  const id=document.getElementById('docs-exam-select')?.value;
+  if(!id)throw new Error('Pilih ujian terlebih dahulu.');
+  const exam=docsExamRows.find(x=>x.id===id);
+  if(!exam)throw new Error('Data ujian tidak ditemukan. Klik Muat Ujian.');
+  return exam;
+}
+function docsPrintWindow(title,body){
+  const w=window.open('','_blank');
+  if(!w)throw new Error('Jendela cetak diblokir browser. Izinkan pop-up untuk dashboard staging.');
+  w.document.open();w.document.write(`<!doctype html><html lang="id"><head><meta charset="utf-8"><title>${docsEscape(title)}</title><style>
+  @page{size:A4 portrait;margin:15mm}body{font:12px Arial,sans-serif;color:#111}h1,h2,p{margin:0 0 8px}h1{text-align:center;font-size:18px}h2{text-align:center;font-size:14px}.muted{text-align:center;font-size:11px;margin-bottom:18px}.meta{width:100%;border-collapse:collapse;margin:12px 0 18px}.meta td{padding:5px 7px;vertical-align:top}.data{width:100%;border-collapse:collapse}.data th,.data td{border:1px solid #333;padding:6px}.data th{background:#eee}.sign{margin-top:32px;display:flex;justify-content:space-between;gap:40px;text-align:center}.sign>div{width:45%}.line{margin-top:70px;text-decoration:underline;font-weight:bold}.notes{white-space:pre-wrap;border:1px solid #777;padding:8px;min-height:45px}@media print{button{display:none}}
+  </style></head><body>${body}<script>window.onload=()=>window.print();<\/script></body></html>`);
+  w.document.close();
+}
+function docsPrintAttendance(){
+  try{
+    const exam=docsSelectedExam(),kelas=document.getElementById('docs-attendance-class')?.value;
+    if(!kelas)throw new Error('Pilih kelas untuk daftar hadir.');
+    const m=exam.cbt_mata_pelajaran||{};
+    const rows=docsStudentRows.filter(s=>s.aktif===true&&String(s.kelas||'').trim()===kelas).sort((a,b)=>String(a.nama_lengkap||'').localeCompare(String(b.nama_lengkap||''),'id'));
+    if(!rows.length)throw new Error('Tidak ada siswa aktif pada kelas tersebut.');
+    const tr=rows.map((s,i)=>`<tr><td>${i+1}</td><td>${docsEscape(s.nisn)}</td><td>${docsEscape(s.nama_lengkap)}</td><td>${docsEscape(s.kelas)}</td><td></td><td></td></tr>`).join('');
+    const body=`<h1>DAFTAR HADIR PESERTA UJIAN</h1><h2>${docsEscape(m.nama||'')}</h2><p class="muted">CBT MULTI-MAPEL</p><table class="meta"><tr><td width="22%">Nama ujian</td><td>: ${docsEscape(exam.judul)}</td><td width="15%">Kelas</td><td>: ${docsEscape(kelas)}</td></tr><tr><td>Materi</td><td>: ${docsEscape(exam.materi||'-')}</td><td>Mata pelajaran</td><td>: ${docsEscape(m.nama||'-')}</td></tr><tr><td>Tanggal</td><td>: ____________________</td><td>Ruang/Sesi</td><td>: ____________________</td></tr></table><table class="data"><thead><tr><th>No.</th><th>NISN</th><th>Nama siswa</th><th>Kelas</th><th>Kehadiran<br>(H/I/S/A)</th><th>Tanda tangan</th></tr></thead><tbody>${tr}</tbody></table><p style="margin-top:10px;font-size:11px">Keterangan: H = Hadir, I = Izin, S = Sakit, A = Alpa.</p><div class="sign"><div>Pengawas,<div class="line">(........................................)</div></div><div>Mengetahui,<br>Ketua Panitia Ujian<div class="line">(........................................)</div></div></div>`;
+    docsPrintWindow('Daftar Hadir - '+exam.judul,body);
+  }catch(err){docsNotice(err.message||String(err),false);}
+}
+function docsPrintMinutes(){
+  try{
+    const exam=docsSelectedExam(),m=exam.cbt_mata_pelajaran||{};
+    const date=document.getElementById('docs-ba-date').value||'________________';
+    const start=document.getElementById('docs-ba-start').value||'________';
+    const end=document.getElementById('docs-ba-end').value||'________';
+    const supervisor=document.getElementById('docs-ba-supervisor').value.trim()||'________________________';
+    const present=document.getElementById('docs-ba-present').value;
+    const absent=document.getElementById('docs-ba-absent').value;
+    if(present!==''&&Number(present)<0||absent!==''&&Number(absent)<0)throw new Error('Jumlah peserta tidak boleh negatif.');
+    if(present!==''&&absent!==''&&Number(present)+Number(absent)<1)throw new Error('Periksa kembali jumlah hadir dan tidak hadir.');
+    const notes=document.getElementById('docs-ba-notes').value.trim()||'Tidak ada catatan.';
+    const dateLabel=date==='________________'?date:new Date(date+'T00:00:00').toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+    const body=`<h1>BERITA ACARA PELAKSANAAN UJIAN</h1><h2>CBT MULTI-MAPEL</h2><p class="muted">DOKUMEN ADMINISTRASI PELAKSANAAN UJIAN</p><p>Pada hari/tanggal <b>${docsEscape(dateLabel)}</b>, pukul <b>${docsEscape(start)}</b> sampai dengan <b>${docsEscape(end)}</b>, telah dilaksanakan ujian dengan rincian sebagai berikut:</p><table class="meta"><tr><td width="28%">Mata pelajaran</td><td>: ${docsEscape(m.nama||'-')}</td></tr><tr><td>Judul ujian</td><td>: ${docsEscape(exam.judul)}</td></tr><tr><td>Materi</td><td>: ${docsEscape(exam.materi||'-')}</td></tr><tr><td>Kelas/jenjang</td><td>: ${docsEscape(m.jenjang_kelas||'-')}</td></tr><tr><td>Durasi ujian</td><td>: ${docsEscape(exam.durasi_menit||'-')} menit</td></tr><tr><td>Jumlah hadir</td><td>: ${present===''?'Belum diisi':docsEscape(present)} orang</td></tr><tr><td>Jumlah tidak hadir</td><td>: ${absent===''?'Belum diisi':docsEscape(absent)} orang</td></tr><tr><td>Pengawas</td><td>: ${docsEscape(supervisor)}</td></tr><tr><td>Ruang/Sesi</td><td>: ______________________________</td></tr></table><p><b>Catatan kejadian/kendala:</b></p><div class="notes">${docsEscape(notes)}</div><p style="margin-top:14px">Demikian berita acara ini dibuat dengan sebenarnya untuk digunakan sebagaimana mestinya.</p><div class="sign"><div>Pengawas Ujian,<div class="line">(${docsEscape(supervisor)})</div></div><div>Mengetahui,<br>Kepala Sekolah<div class="line">(........................................)</div></div></div>`;
+    docsPrintWindow('Berita Acara - '+exam.judul,body);
+  }catch(err){docsNotice(err.message||String(err),false);}
+}
+</script>
+
+</body></html>`;
             const blob = new Blob(['\ufeff', content], {type:'application/msword'});
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a'); a.href = url; a.download = 'Template_Soal_CBT_PKWU.doc';
